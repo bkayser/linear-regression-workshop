@@ -1,80 +1,98 @@
 ---
-title: "Regression Examples: Modeling Throughput"
-output: html_notebook
+title: "Linear Regression Workshop"
+author: "Bill Kayser"
+date: '2018-03-11 <br><br>New Relic<br>Slides available at <http://bkayser.github.io/linear-regression-workshop>'
+output: 
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      highlightLanguage: r
+    countIncrementalSlides: false
+    css: ["default", "default-fonts", "whk.css"]
+  html_notebook: default
+  ioslides_presentation: default
 ---
-```{r, results='hide'}
-library(ggplot2)
-library(dplyr)
-library(caret)
+layout: true
+
+## Load required libraries
+
+---
+`tidyverse` loads in packages around Hadley Wickham's principles of tidy data.
+
+```{r echo=TRUE, results='hide'}
+library(tidyverse)
+```
+---
+Some other libraries required for processing dates and doing Generalized Additive 
+Models.
+
+```{r}
 library(lubridate)
-library(knitr)
 library(gam)
-library(stringi)
-library(reshape2)
 ```
 
-
-```{r, results='hide'}
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE, results='hide'}
+library(knitr)
 theme_set(theme_light())
 knitr::opts_chunk$set(echo = T, messages=F, warning=F, error = F, cache=T)
 ```
-
-
-<style type="text/css">
-.table {
-    width: inherit;
-    max-width: 100%;
-    margin-bottom: 20px;
-}
-.math.display {
-  font-size: 28px;
-}
-</style>
-
-# Simple Linear Regression
+---
+layout: false
+## Load Data
 
 This is a sample set of transaction data in a 10 minute timeseries.
 
 ```{r}
 data <- readRDS("data/rpmui.RDS")
+```
+--
+```{r}
 summary(data$throughput)
+```
+--
+```{r}
 summary(data$timestamp)
+```
+--
+```{r}
 summary(data$start_time)
 ```
 
-What does throughput look like as a function of time of day and day of week?
+---
+layout: false
+## Preview Data 
 
+What does throughput look like as a function of time of day and day of week?
+--
 ```{r}
-ggplot(data) + aes(start_time, throughput) + geom_point(alpha=0.6, size=0.5) +
+ggplot(data) + aes(start_time, throughput) + 
+    geom_point(alpha=0.6, size=0.5) +
     scale_x_datetime(date_labels='%H:%m')
 ```
-
-Show days of the week.
-
+---
+Preview Days of Week
 ```{r}
-g <- ggplot(data) +
-    aes(x=timestamp, y=throughput) +
+ggplot(data) + aes(x=timestamp, y=throughput) +
     geom_point(size=0.2) +
     scale_x_datetime(date_labels='%H:%m')
-g
-
 ```
-
+---
+Color the Days
 ```{r}
-g <- ggplot(data) +
-    aes(x=start_time, y=throughput) +
+(g <- ggplot(data) + aes(x=start_time, y=throughput) +
     geom_point(aes(color=day), alpha=0.6, size=0.5) +
-    scale_x_datetime(date_labels='%H:%m')
-g
+    scale_x_datetime(date_labels='%H:%m'))
 ```
-
+---
 ### Predict throughput from time of day
 
 ```{r}
 model.linear <- lm(throughput ~ minute_of_day, data=data)
 model.linear
 ```
-
+---
 
 Predict the throughput at 3:00 pm.
 
@@ -83,7 +101,7 @@ minute_of_day.3pm <- 15 * 60
 beta <- coef(model.linear)
 beta[1] + minute_of_day.3pm * beta[2]
 ```
-
+---
 What does this look like?  
 
 First create a dataset of uniform values across predictors.
@@ -119,7 +137,7 @@ summary(model.linear)
 First, let's leave off weekend data.
 
 ```{r}
-data.midweek <- filter(data, ! day %in% c('Sat', 'Sun') )
+data.midweek <- filter(data,  ! (day %in% c('Sat', 'Sun') ))
 ```
 
 Now recalculate the linear model and predictions without the weekend data.
@@ -220,7 +238,7 @@ g.midweek + geom_line(aes(x=start_time, y=throughput), data=predictions, color='
 ### Summary of Model Performance
 
 ```{r}
-modelnames   <- ls(pattern='model\\.')
+modelnames <- c("model.linear", "model.midweek.combined", "model.midweek.linear", "model.midweek.poly","model.midweek.quadratic", "model.midweek.radial")
 models        <- mget(modelnames) %>% lapply(summary)
 formulas      <- sapply(models, getElement, 'call')
 adj.r.squared <- sapply(models, getElement, 'adj.r.squared')
@@ -476,7 +494,7 @@ summary(model.linear.simple)
 Do the pages have an effect?
 
 ```{r}
-cpm_columns <- names(transactions) %>% stri_startswith_fixed('cpm.')
+cpm_columns <- names(transactions) %>% startsWith('cpm.')
 
 # Fill NA's with zeros
 index.na <- is.na(transactions)
@@ -536,8 +554,11 @@ predictions$cpm <- seq(min(data$cpm), max(data$cpm), length.out = 200)
 predictions$duration.linear <- predict(model.linear, newdata=predictions)
 predictions$duration.quadratic <- predict(model.quadratic, newdata=predictions)
 predictions$duration.spline <- predict(model.spline, newdata=predictions)
-df <- melt(predictions, c('cpm'), 
-            c('duration.linear', 'duration.spline', 'duration.quadratic'), variable.name = 'model', value.name = 'duration')
+#df <- melt(predictions, c('cpm'), 
+#            c('duration.linear', 'duration.spline', 'duration.quadratic'), variable.name = 'model', #value.name = 'duration')
+
+df <-select(predictions, -duration) %>%
+    gather('model', 'duration', duration.linear, duration.spline, duration.quadratic)
 
 ggplot(transactions) +
     aes(x=cpm, y=duration) +
