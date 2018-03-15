@@ -1,7 +1,7 @@
 ---
 title: "Linear Regression Workshop"
 author: "Bill Kayser"
-date: '2018-03-11 <br><br>New Relic<br>Slides available at <http://bkayser.github.io/linear-regression-workshop>'
+date: "2018-03-11 <br><br>New Relic<br>Slides available at <http://bkayser.github.io/linear-regression-workshop>"
 output: 
   xaringan::moon_reader:
     lib_dir: libs
@@ -9,22 +9,48 @@ output:
       highlightStyle: github
       highlightLines: true
       highlightLanguage: r
+      ratio: '16:9'
     countIncrementalSlides: false
     css: ["default", "default-fonts", "whk.css"]
+---
+exclude: true
+name: init
+## Init
+
   html_notebook: default
-  ioslides_presentation: default
+  
+```{r results='hide'}
+library(knitr)
+knitr::opts_chunk$set(echo = T, 
+                      messages=F, 
+                      warning=F, 
+                      error = F, 
+                      cache=T, 
+                      fig.width=9, 
+                      fig.asp=0.5,
+                      fig.align = 'center',
+                      out.width = '800px'
+                      )
+```
+
 ---
 layout: true
-
+name: loadlibs
 ## Load required libraries
 
 ---
+name: tidyverse
 `tidyverse` loads in packages around Hadley Wickham's principles of tidy data.
 
 ```{r echo=TRUE, results='hide'}
 library(tidyverse)
 ```
+
+```{r include=FALSE}
+theme_set(theme_light())
+```
 ---
+name: otherlibs
 Some other libraries required for processing dates and doing Generalized Additive 
 Models.
 
@@ -33,12 +59,8 @@ library(lubridate)
 library(gam)
 ```
 
-```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE, results='hide'}
-library(knitr)
-theme_set(theme_light())
-knitr::opts_chunk$set(echo = T, messages=F, warning=F, error = F, cache=T)
-```
 ---
+name: loaddata-layout
 layout: false
 ## Load Data
 
@@ -48,6 +70,18 @@ This is a sample set of transaction data in a 10 minute timeseries.
 data <- readRDS("data/rpmui.RDS")
 ```
 --
+```{r}
+data
+```
+---
+```{r}
+names(data)
+```
+--
+```{r}
+kable(format='html',head(data,10))
+```
+---
 ```{r}
 summary(data$throughput)
 ```
@@ -59,145 +93,281 @@ summary(data$timestamp)
 ```{r}
 summary(data$start_time)
 ```
+---
+layout: true
+
+### Preview Data 
 
 ---
-layout: false
-## Preview Data 
-
-What does throughput look like as a function of time of day and day of week?
---
+name: preview-1
+Throughput by Hour of Month
+```{r}
+ggplot(data) + aes(x=timestamp, y=throughput) +
+    geom_point(size=0.2) +
+    scale_x_datetime(date_labels='%F ') 
+```
+---
+Throughput by Hour of Day
 ```{r}
 ggplot(data) + aes(start_time, throughput) + 
     geom_point(alpha=0.6, size=0.5) +
     scale_x_datetime(date_labels='%H:%m')
 ```
 ---
-Preview Days of Week
-```{r}
-ggplot(data) + aes(x=timestamp, y=throughput) +
-    geom_point(size=0.2) +
-    scale_x_datetime(date_labels='%H:%m')
-```
----
-Color the Days
+Colored by Day of Week
 ```{r}
 (g <- ggplot(data) + aes(x=start_time, y=throughput) +
     geom_point(aes(color=day), alpha=0.6, size=0.5) +
     scale_x_datetime(date_labels='%H:%m'))
 ```
 ---
-### Predict throughput from time of day
+name: simple_regression-layout
+layout: true
+### Simple Linear Regression
 
+---
+name: simple-regression1
+Create a function to estimate the relationship between the time of day and the throughput using the form:
+
+$$
+f(x) = \beta_0 +\beta_1x^2
+$$
+where $f(x)$ is the function that predicts throughput given the minute of the day $x^2$.
+
+--
+name: simple-regression-2
 ```{r}
 model.linear <- lm(throughput ~ minute_of_day, data=data)
 model.linear
 ```
 ---
-
+name: predict-one
 Predict the throughput at 3:00 pm.
 
 ```{r}
-minute_of_day.3pm <- 15 * 60
+minute_of_day.3pm <- as.numeric(dhours(15), unit='minutes')
 beta <- coef(model.linear)
 beta[1] + minute_of_day.3pm * beta[2]
 ```
 ---
-What does this look like?  
+name: study-fx
+What does $f(x)$ look like?
 
-First create a dataset of uniform values across predictors.
-
+--
+name: predict-simple
+First create a dataset of synthetic x values, consisting of a time series of consecutive 10 minute periods over 24 hours.
+--
+name: predict-simple1
 ```{r}
 minute_of_day <- seq(0, 24 * 60 - 1, 10)
 predictions <- data.frame(minute_of_day,
                           start_time = min(data$start_time) + dminutes(minute_of_day))
-head(predictions)
+head(predictions, 10)
 ```
-
-Now use the model to populate the predicted values for throughput.
+---
+name: predict-simple2
+Now use the model to augment our synthetic predictors with values predicted by the linear model:
 
 ```{r}
 predictions$throughput <- predict(model.linear, newdata=predictions)
-head(predictions, 10) 
+```
+--
+name: baseline-values
+```{r}
+select(predictions, minute_of_day, throughput) %>% head(10) %>% kable(format='html')
 ```
 
-That's our baseline!  What does it look like?
-
+That's our baseline!  
+---
+name: baseline-plot
+ 
+Next, plot $f(x)$...
 
 ```{r}
 g + geom_line(aes(x=start_time, y=throughput), color='red', size=1, data=predictions) 
 ```
-
-Show some details on the model.
+---
+name: baseline_model-summary
+Show more detail on the model using the `summary(...)` function.
 
 ```{r}
 summary(model.linear)
 ```
-### Polynomial Regression
+---
+layout: false
+name: poly-regression
+# Polynomial Regression
 
-First, let's leave off weekend data.
+Let's make the linear model "non-linear" by using polynomial coefficients instead of linear coefficients.
+
+--
+name: poly_regression-explanation
+Create multiple predictors from a single variable by raising the variable to different powers and assigning
+a coefficient to each predictor.
+
+--
+name: filter_weekend-data
+Begin by removing the weekend data.
 
 ```{r}
 data.midweek <- filter(data,  ! (day %in% c('Sat', 'Sun') ))
 ```
+---
+layout: true
+name: poly_regression-layout
+### Polynomial Regression
 
+---
+name: weekday-chart
+```{r, out.width='900px'}
+(g.midweek <- ggplot(data.midweek) + 
+     geom_point(aes(x=start_time, y=throughput, color=day), alpha=0.6, size=0.5) +
+     scale_x_datetime(date_labels='%H:%m'))
+```
+
+---
+name: midweek_simple-model
 Now recalculate the linear model and predictions without the weekend data.
 
 ```{r}
-model.midweek.linear =  lm(throughput ~ minute_of_day, data=data.midweek)
+model.midweek.linear   <- lm(throughput ~ minute_of_day, data=data.midweek)
 predictions$throughput <- predict(model.midweek.linear, newdata=predictions)
 ```
-
+--
 ```{r}
-g.midweek <- ggplot(data.midweek) +
-    geom_point(aes(x=start_time, y=throughput, color=day), alpha=0.6, size=0.5) +
-    scale_x_datetime(date_labels='%H:%m')
-g.midweek + geom_line(aes(x=start_time, y=throughput), color='red', size=1, data=predictions) 
+head(predictions, 10) %>% kable(format='html',)
 ```
+---
+name: midweek_simple_model-plot
+```{r}
+g.midweek + geom_line(aes(x=start_time, y=throughput), color='red', size=1, 
+                      data=predictions) 
+```
+---
+name: quadratic-predictors
+#### Using Quadratic Coefficents
 
-Use quadratic predictors on the minute of the day.
+Use quadratic terms for the minute of the day.
+$$
+  f(x) = \beta_0 + \beta_1x + \beta_2x^2
+$$
+...where $x$ is the time of day.
+
+--
+name: quadratic-model
+In the R `lm()` function you represent a quadratic function as a formula that looks like this:
+
+```r
+throughput ~ I(minute_of_day**2) + minute_of_day
+```
+---
+name: quadratic_model-summary
 
 ```{r}
-model.midweek.quadratic <- lm(throughput ~ I(minute_of_day**2) + minute_of_day, data=data.midweek)
+model.midweek.quadratic <- lm(throughput ~ I(minute_of_day**2) + minute_of_day, 
+                              data=data.midweek)
 summary(model.midweek.quadratic)
 ```
-
+---
+name: quadratic_model-predictions
 Regenerate throughput prediction using the quadratic model.
 
 ```{r}
 predictions$throughput <- predict(model.midweek.quadratic, newdata=predictions)
 ```
-
-What does it look like now?
+--
+name: quadratic_model_predictions-sample
+```{r}
+head(predictions, 10) %>% kable(format='html',)
+```
+---
+name: quadratic_model-plot
+### Throughput prediction using a quadratic function
 
 ```{r}
-g.midweek + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', size=1) 
+g.midweek + geom_line(data=predictions,
+                      aes(x=start_time, y=throughput), 
+                      color='red', size=1) 
 ```
+---
+name: poly-formula
+
+### Using higher order polynomials
 
 Use higher degree polynomial via `poly()` function in the formula.
 
 ```{r}
-model.midweek.poly <- lm(throughput ~ poly(minute_of_day, 20), data=data.midweek)
+model.midweek.poly <- lm(throughput ~ poly(minute_of_day, 9), data=data.midweek)
+```
+--
+name: poly_formula-description
+
+This yields a model with 10 coefficents: 
+
+$$
+f(x) = \beta_0 + \beta_1x^1 + \beta_2x^2 + \beta_3x^3  ... \beta_9x^9 
+$$
+---
+name: poly_model-summary
+```{r}
 summary(model.midweek.poly)
 ```
 
+---
+name: poly_model-plot
+### Plot the polynomial predictor
+
 ```{r}
 predictions$throughput <- predict(model.midweek.poly, newdata=predictions)
-
 g.midweek + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', size=1) 
 ```
 
-
+---
+layout: false
+name: multi-regression
 # Multiple Regression
 
-Use two new terms instead of minute of day.
+Linear Regression with more than one predictor: $x_0, x_1, x_2 ... x_n$
+
+Example: Instead of using the time of day as a predictor, derive two new terms from the 
+time of day: 
+$$
+f(x) = \beta_0 + \beta_1 \cos\left(\frac{x\cdot2\pi}{24 \cdot 60}\right) + \beta_2\sin\left(\frac{x\cdot2\pi}{24 \cdot 60}\right)
+$$
+...where $x$ is the time of day.
+---
+layout: true
+### Multiple Regression
+
+---
+name: multi_add-vars
+
+First, add two new variables to the data frame:
 
 ```{r}
-data$minute_of_day.cos <- cos(data$minute_of_day*2*pi/1440)
-data$minute_of_day.sin <- sin(data$minute_of_day*2*pi/1440)
-data.midweek <- filter(data, ! day %in% c('Sat', 'Sun') )
-model.midweek.radial <- lm(throughput ~ minute_of_day.cos + minute_of_day.sin, data=data.midweek)
+data.midweek$minute_of_day.cos <- cos(data.midweek$minute_of_day*2*pi/1440)
+data.midweek$minute_of_day.sin <- sin(data.midweek$minute_of_day*2*pi/1440)
+```
+--
+```{r echo=FALSE}
+gather(data.midweek, key='variable', value='x',  minute_of_day.cos, minute_of_day.sin) %>%
+ggplot() + aes(x=minute_of_day, y=x, color=variable) +  geom_line()
+```
+---
+name: multi-model
+Create the new model with the two derived variables.
+
+```{r}
+model.midweek.radial <- lm(throughput ~ minute_of_day.cos + minute_of_day.sin,
+                           data=data.midweek)
+```
+--
+name: multi_model-summary
+```{r}
 summary(model.midweek.radial)
 ```
+---
+name: multi-predictions
 
 To assess the model update our predictions with the new features, then recalculate the
 predicted throughput.
@@ -207,144 +377,245 @@ predictions <- mutate(predictions,
                       minute_of_day.cos = cos(minute_of_day*2*pi/1400),
                       minute_of_day.sin = sin(minute_of_day*2*pi/1400))
 predictions$throughput <- predict(model.midweek.radial, newdata=predictions)
+```
+--
+name: multi_predictions-head
+```{r}
 head(predictions)
 ```
-
-How does this look?
-
+---
+name: multi_predictions-plot
 ```{r}
-g.midweek + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', size=1) 
+g.midweek + geom_line(aes(x=start_time, y=throughput), 
+                      data=predictions, color='red', size=1) 
 ```
+---
+layout: false
+name: combined
+# Combined Methods
 
+Best of both worlds?
 
-# Combined Terms
+--
+name: combined-1
+* Use both $\sin(x)$ and $\cos(x)$ values
 
-Best of both worlds?  Let's do a cubic on the sin and cos terms.
+--
+name: combined-2
+* Add four new terms raising $\sin(x)$ and $\cos(x)$ to exponents of 2 and 3
+--
+name: combined-formula
+$$
+f(x) = \beta_0 + \beta_1\sin(x) + \beta_2\sin(x)^2 + \beta_3\sin(x)^3 + \\
+       \beta_4\cos(x) + \beta_5\cos(x)^2 + \beta_6\cos(x)^3
+$$
+--
+name: combined-3
+* Seven coefficients total
+
+---
+layout: true
+### Combining Radial and Polynomial
+
+---
+name: combined-model
+Use a formula with the `poly()` function:
+
+```r
+throughput ~ poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 3)
+```
+--
+name: combined_model-2
 
 ```{r}
-model.midweek.combined <- lm(throughput ~ poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 3), data=data.midweek)
+model.midweek.combined <- 
+    lm(throughput ~ poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 3), 
+       data=data.midweek)
+```
+---
+name: combined-summary
+
+```{r}
 summary(model.midweek.combined)
 ```
+---
+name: bonus-question
+### Bonus question
 
-Bonus question: why is the term $sin^2$ not significant?
+```r
+coef(model.midweek.combined)
+```
+```{r echo=FALSE}
+kable(format='html',coef(model.midweek.combined))
+```
 
+Why is the term $sin(x)^2$ not significant?
+---
+name: combined-predictions
+
+Update the predictions data with the combined model predictions.
 
 ```{r}
 predictions$throughput <- predict(model.midweek.combined, newdata=predictions)
-
-g.midweek + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', size=1) 
+g.midweek + geom_line(aes(x=start_time, y=throughput), 
+                      data=predictions, color='red', size=1) 
 ```
-
+---
+layout: false
 ### Summary of Model Performance
 
-```{r}
-modelnames <- c("model.linear", "model.midweek.combined", "model.midweek.linear", "model.midweek.poly","model.midweek.quadratic", "model.midweek.radial")
-models        <- mget(modelnames) %>% lapply(summary)
-formulas      <- sapply(models, getElement, 'call')
-adj.r.squared <- sapply(models, getElement, 'adj.r.squared')
-f.statistic   <- lapply(models, getElement, 'fstatistic') %>% sapply(getElement, 1)
-data.frame(Model=modelnames,
-           'R_Squared'=round(adj.r.squared, 2),
-           'F_Statistic'=round(f.statistic)) %>%
-    arrange(desc(R_Squared)) %>%
-    kable(row.names=F)
+```{r echo=FALSE}
+modelnames <- c("model.midweek.combined", "model.midweek.linear", "model.midweek.poly","model.midweek.quadratic", "model.midweek.radial")
+models        <- mget(modelnames) 
+summaries     <- lapply(models, summary)
+formulas      <- sapply(summaries, getElement, 'call') %>% sub(pattern=".*~ (.*),.*", replacement="\\1")
+coefs         <- sapply(models, coef) %>% sapply(length)
+adj.r.squared <- sapply(summaries, getElement, 'adj.r.squared')
+f.statistic   <- lapply(summaries, getElement, 'fstatistic') %>% sapply(getElement, 1)
+aic           <- sapply(models, AIC)
+tibble(Formula=formulas,
+       Coefficients=coefs,
+       `AIC` = round(aic),
+       'F Statistic'=round(f.statistic),
+       'Adjusted R Squared'=round(adj.r.squared, 2)) %>%
+    arrange(AIC) %>%
+    kable(format='html',row.names=F)
 ```
+---
 
 # Diagnostic Plots
 
 The R `lm()` function includes diagnostic plots analyzing the residuals to assess the quality of the model.
 
 You can use `plot(model)` to view the plots interactively one at a time.
-
-#### Residual vs Fitted
+---
+layout: true
+### Diagnostic Plots: 
+---
+Residual vs Fitted
 
 ![](images/diagnostics1.jpeg)
-
-#### Normal Q-Q
+---
+Normal Q-Q
 
 ![](images/diagnostics2.jpeg)
 
-#### Scale-Location
+---
+Scale-Location
 
 Verify the assumption of equal variance of the target variable across its predictors: homoscedasticity.
 
 
 ![](images/diagnostics3.jpeg)
 
-#### Residuals vs Leverage
+---
+Residuals vs Leverage
 
 ![](images/diagnostics5.jpeg)
-
-#### Throughput Model Diagnostics
-
-```{r}
+---
+layout: true
+class: diag-plots
+### Throughput Model Diagnostics: 
+---
+Linear Model
+name: diag-linear
+```{r echo=FALSE, fig.asp=0.6, fig.width=8}
 plot(model.midweek.linear)
 ```
-
-```{r}
+---
+Quadratic Model
+name: diag-quadratic
+```{r echo=FALSE, fig.asp=0.6, fig.width=8}
 plot(model.midweek.quadratic)
 ```
-
-```{r}
+---
+9th Degree Polynomial Model
+name: diag-poly
+```{r echo=FALSE, fig.asp=0.6, fig.width=8}
 plot(model.midweek.poly)
 ```
-
+---
+Radial/Cubic Model
+name: diag-combined
+```{r echo=FALSE, fig.asp=0.6, fig.width=8}
+plot(model.midweek.combined)
+```
+---
+layout: false
 # Categorical Predictors
 
 Revisit the throughput dataset.
 
-Include the days of the week.
+This time we will include the days of the week.
 
 ```{r}
 data <- readRDS("data/rpmui.RDS") 
-data$minute_of_day.cos <- cos(data$minute_of_day*2*pi/1440)
-data$minute_of_day.sin <- sin(data$minute_of_day*2*pi/1440)
+# data$minute_of_day.cos <- cos(data$minute_of_day*2*pi/1440)
+#data$minute_of_day.sin <- sin(data$minute_of_day*2*pi/1440)
+model.byday <- lm(throughput ~ poly(minute_of_day,3) + day, data=data)
+```
+---
+layout: true
+### Day of Week as a Categorical Predictor
 
-model.byday <- lm(throughput ~ poly(minute_of_day,8) + day, data=data)
-summary(model.byday)
+---
+```{r}
+coef(model.byday)
 ```
 
+Why is there a day missing?
 
+--
 ```{r}
 contrasts(data$day)
 ```
+---
+What does this model look like?
 
+--
 
-Look at the model without an intercept.
+First, create sample data in multiple dimensions.
+
+The current `predictions` data frame only covers one 24 hour period.
 
 ```{r}
-model.z <- lm(throughput ~ poly(minute_of_day, 8) + day + 0, data=data)
-summary(model.z)
+dim(predictions)
 ```
-
-What does this look like?
-
-First, create sample data in multiple dimensions:
+--
+We need to expand this to cover seven 24 hour periods.
 
 ```{r}
 predictions.byday <- expand.grid(start_time=predictions$start_time, 
                                  day=factor(c('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'))) %>%
     right_join(predictions, by='start_time')
-head(predictions.byday)
 ```
-
+--
+```{r}
+dim(predictions.byday)
+```
+---
 Now Create the predictions using all the dimensions:
+
 ```{r}
 predictions.byday$throughput <- predict(model.byday, newdata = predictions.byday)
 ```
-
-Show the plots:
-
+--
 ```{r}
-ggplot(predictions.byday) + aes(x=start_time, y=throughput, color=day) + geom_line(linetype=2, size=0.5)
+head(predictions.byday, 10)
 ```
-
+---
+```{r}
+ggplot(predictions.byday) + aes(x=start_time, y=throughput, color=day) +
+    geom_line(linetype=2, size=0.5)
+```
+---
 ```{r}
 g + aes(color=day) +
-   geom_line(aes(x=start_time, y=throughput, color=day), linetype=2, inherit.aes = F, size = 0.5, data = predictions.byday) 
+    geom_line(aes(x=start_time, y=throughput, color=day), linetype=2, inherit.aes = F, size = 0.5, 
+             data = predictions.byday) 
 ```
-
-
+---
+layout: false
 # Smoothing Splines
 
 Build a spline interpolation.
@@ -353,37 +624,50 @@ Build a spline interpolation.
 model.spline <- smooth.spline(data$minute_of_day, data$throughput)
 predictions$throughput <- model.spline$y
 ```
+---
+layout: true
+### Smoothing Splines
 
-Display the result:
-
+---
 ```{r}
 g + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', size=1) 
 ```
-
+---
+layout: false
 # Generalized Additive Models
 
 Can we combine splines with multiple regression?
+---
+layout: true
+### Generalized Additive Models
 
+---
+A GAM looks a lot like a linear model but allows you to specify a variable as a smoothing spline with 
+a smoothing parameter.
 
 ```{r}
 model.gam <- gam(throughput ~ s(minute_of_day, spar=0.5) + day, 
                  data = data)
 
 predictions.byday$throughput <- predict(model.gam, newdata=predictions.byday)
-
-g + geom_line(aes(x=start_time, y=throughput, color=day), data=predictions.byday, size=1) 
-
 ```
-
-
+---
+```{r}
+g + geom_line(aes(x=start_time, y=throughput, color=day), data=predictions.byday, size=1) 
+```
+---
 Add a weekend flag:
 
 ```{r}
 data$weekend <- data$day %in% c('Sat', 'Sun')
 predictions.byday$weekend <- predictions.byday$day %in% c('Sat', 'Sun')
+summary(predictions.byday$weekend)
+```
+--
+```{r}
 head(predictions.byday, 7)
 ```
-
+---
 
 ```{r}
 model.fullsplines <- gam(throughput ~ weekend * s(I(minute_of_day + (weekend * 1440)), spar=0.2), 
@@ -395,80 +679,18 @@ g + geom_line(aes(x=start_time, y=throughput.fullsplines, linetype=weekend), dat
 ggplot(predictions.byday) + aes(x=start_time, y=throughput.fullsplines, color=weekend) + geom_line()
 ```
 
-# Logistic Regression
-
-Look at the Titanic dataset.
-
-```{r}
-
-passengers <- read.csv('data/titanic_training.csv')
-summary(passengers)
-```
-
-Encode the survival as a boolean, and fill in missing ages with the average.
-
-```{r}
-passengers$Survived <- as.logical(passengers$Survived)
-passengers$Age[is.na(passengers$Age)] <- median(passengers$Age, na.rm=T)
-```
-
-Create training and test sets.
-
-```{r}
-set.seed(1001)
-i <- caret::createDataPartition(passengers$Survived, p=0.80,list=F)
-passengers.training <- passengers[i,]
-passengers.test <- passengers[-i, ]
-nrow(passengers.test)
-```
-
-Let's predict whether a passenger survived based on their class, sex and age.
-
-```{r}
-model.lm <- lm(Survived ~ Pclass + Sex,
-            data=passengers.training)
-summary(model.lm)
-```
-
-```{r}
-predictions.lm <- predict(model.lm, newdata=passengers.test)
-summary(predictions.lm)
-```
-
-Show the confusion matrix.
-
-```{r}
-caret::confusionMatrix(predictions.lm > 0.51, passengers.test$Survived)
-```
-
-Try another model using logistic regression.
-
-
-```{r}
-model.glm <- glm(Survived ~ Pclass + Sex + Age, 
-                 data=passengers.training,
-                 family=binomial(link='logit'))
-summary(model.glm)
-```
-
-```{r}
-predictions.glm <- predict(model.glm, type='response', newdata=passengers.test)
-summary(predictions.glm)
-```
-
-```{r}
-caret::confusionMatrix(predictions.glm > 0.53, passengers.test$Survived)
-```
-
-
-# Example: Impact of Load on Performance
+---
+# Predicting Performance
 
 ```{r}
 transactions <- readRDS('data/sample_server_app.RDS')
 names(transactions)
 ```
+---
+layout: true
+### Predicting Performance
 
-
+---
 ```{r}
 g <- ggplot(transactions) +
     aes(x=cpm, y=duration) +
@@ -478,19 +700,18 @@ g <- ggplot(transactions) +
     ylim(0, NA)
 g
 ```
-
+---
 Can we predict duration from the load?
 
 ```{r}
 g + stat_smooth(method='lm', color='black')
 ```
-
-
+---
 ```{r}
 model.linear.simple <- lm(duration ~ cpm, data=transactions)
 summary(model.linear.simple)
 ```
-
+---
 Do the pages have an effect?
 
 ```{r}
@@ -503,13 +724,16 @@ for (col in which(cpm_columns)) { transactions[index.na[,col],col] <- 0 }
 # Create rate columns with proportion of traffic to each name
 transactions[,paste0('rate.', names(transactions)[cpm_columns])] <- transactions[,cpm_columns] / transactions$cpm
 ```
+---
 
 The rate fields now have the percentage of traffic that hit that page, rather than the raw calls per minute:
 ```{r}
 summary(transactions$`rate.cpm.name.Controller/api/v1/telematics/update_asset`)
 ```
+---
 
 Now perform a regression using the page rates as predictors.
+--
 
 Do a regression on all rate columns:
 
@@ -517,7 +741,7 @@ Do a regression on all rate columns:
 model <- lm(duration ~ ., data = select(transactions, duration, cpm, starts_with('rate.cpm')))
 summary(model)
 ```
-
+---
 Use that model to pick out the predictors that have a p value less than 0.05.
 
 ```{r}
@@ -527,12 +751,14 @@ significant_factors <- rownames(all.coef)[all.coef[[5]] < 0.05] %>%
     head(-1)
 significant_factors
 ```
+---
 
 Create a new dataset with only the singificant factors.
 
 ```{r}
 data <- transactions[,c('duration', significant_factors)]
 ```
+--
 
 Now perform three different regressions on that data predicting the duration.
 
@@ -541,9 +767,10 @@ model.linear <- lm(duration ~ ., data = data)
 model.quadratic <- lm(duration ~ I(cpm^2) + ., data = data) #%>% step(direction='backward', trace=F)
 model.spline <- gam(duration ~ s(cpm, spar=0.9) + ., data = data)
 ```
-
+---
 Now what would the duration look like if we eliminated all page effects?
 
+--
 Create a dummy dataset that ignores the effects of pages by setting the rates to zero.
 
 ```{r, fig.height=8, fig.width=10}
@@ -554,12 +781,12 @@ predictions$cpm <- seq(min(data$cpm), max(data$cpm), length.out = 200)
 predictions$duration.linear <- predict(model.linear, newdata=predictions)
 predictions$duration.quadratic <- predict(model.quadratic, newdata=predictions)
 predictions$duration.spline <- predict(model.spline, newdata=predictions)
-#df <- melt(predictions, c('cpm'), 
-#            c('duration.linear', 'duration.spline', 'duration.quadratic'), variable.name = 'model', #value.name = 'duration')
 
 df <-select(predictions, -duration) %>%
     gather('model', 'duration', duration.linear, duration.spline, duration.quadratic)
-
+```
+---
+```{r}
 ggplot(transactions) +
     aes(x=cpm, y=duration) +
     geom_point(color='black', alpha=0.2, size=0.2) +
@@ -569,6 +796,7 @@ ggplot(transactions) +
             subtitle='with overlay of unfiltered sample data') +
     ylim(0.5, 2.5)
 ```
+---
 
 Compare the simple model to the page effects model:
 

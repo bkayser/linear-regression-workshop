@@ -1,0 +1,2706 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Linear Regression Workshop</title>
+    <meta charset="utf-8">
+    <meta name="author" content="Bill Kayser" />
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/default-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="whk.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Linear Regression Workshop
+### Bill Kayser
+### 2018-03-11 <br><br>New Relic<br>Slides available at <a href="http://bkayser.github.io/linear-regression-workshop" class="uri">http://bkayser.github.io/linear-regression-workshop</a>
+
+---
+
+exclude: true
+name: init
+## Init
+
+  html_notebook: default
+  
+
+```r
+library(knitr)
+knitr::opts_chunk$set(echo = T, 
+                      messages=F, 
+                      warning=F, 
+                      error = F, 
+                      cache=T, 
+                      fig.width=9, 
+                      fig.asp=0.5,
+                      fig.align = 'center',
+                      out.width = '800px'
+                      )
+```
+
+---
+layout: true
+name: loadlibs
+## Load required libraries
+
+---
+name: tidyverse
+`tidyverse` loads in packages around Hadley Wickham's principles of tidy data.
+
+
+```r
+library(tidyverse)
+```
+
+
+---
+name: otherlibs
+Some other libraries required for processing dates and doing Generalized Additive 
+Models.
+
+
+```r
+library(lubridate)
+library(gam)
+```
+
+---
+name: loaddata-layout
+layout: false
+## Load Data
+
+This is a sample set of transaction data in a 10 minute timeseries.
+
+
+```r
+data &lt;- readRDS("data/rpmui.RDS")
+```
+--
+
+```r
+data
+```
+
+```
+## # A tibble: 4,032 x 10
+##    throughput duration timestamp           db_count db_duration
+##         &lt;dbl&gt;    &lt;dbl&gt; &lt;dttm&gt;                 &lt;dbl&gt;       &lt;dbl&gt;
+##  1     507834    0.214 2017-08-24 00:00:00  1187515      0.0406
+##  2     512066    0.215 2017-08-24 00:10:00  1204292      0.0407
+##  3     519936    0.215 2017-08-24 00:20:00  1222676      0.0401
+##  4     528973    0.214 2017-08-24 00:30:00  1242789      0.0403
+##  5     535520    0.215 2017-08-24 00:40:00  1248411      0.0402
+##  6     536862    0.215 2017-08-24 00:50:00  1254707      0.0401
+##  7     543581    0.215 2017-08-24 01:00:00  1273378      0.0408
+##  8     546158    0.217 2017-08-24 01:10:00  1281504      0.0406
+##  9     548215    0.219 2017-08-24 01:20:00  1287983      0.0405
+## 10     548519    0.219 2017-08-24 01:30:00  1287467      0.0408
+## # ... with 4,022 more rows, and 5 more variables: external_count &lt;dbl&gt;,
+## #   external_duration &lt;dbl&gt;, day &lt;fct&gt;, minute_of_day &lt;dbl&gt;,
+## #   start_time &lt;dttm&gt;
+```
+---
+
+```r
+names(data)
+```
+
+```
+##  [1] "throughput"        "duration"          "timestamp"        
+##  [4] "db_count"          "db_duration"       "external_count"   
+##  [7] "external_duration" "day"               "minute_of_day"    
+## [10] "start_time"
+```
+--
+
+```r
+kable(format='html',head(data,10))
+```
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; throughput &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; duration &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; timestamp &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; db_count &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; db_duration &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; external_count &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; external_duration &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; day &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; minute_of_day &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; start_time &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 507834 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2139157 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:00:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1187515 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0405513 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 80502.2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0684498 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:00:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 512066 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2145740 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:10:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1204292 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0406686 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 81434.4 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0670015 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 10 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:10:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 519936 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2154686 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:20:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1222676 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0400986 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 81922.8 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0699071 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 20 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:20:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 528973 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2142166 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:30:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1242789 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0402649 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 83525.5 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0670535 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 30 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:30:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 535520 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2148585 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:40:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1248411 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0402461 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 84826.3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0678792 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 40 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:40:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 536862 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2147580 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:50:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1254707 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0401330 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 84662.1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0679835 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 50 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:50:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 543581 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2154588 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:00:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1273378 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0408347 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 85007.0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0668534 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 60 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:00:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 546158 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2173219 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:10:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1281504 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0406299 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 86047.6 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0687761 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 70 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:10:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 548215 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2188857 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:20:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1287983 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0404889 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 86530.3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0706212 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 80 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:20:00 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 548519 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2188316 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:30:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1287467 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0408433 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 87055.8 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0689890 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; Thu &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:30:00 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+---
+
+```r
+summary(data$throughput)
+```
+
+```
+##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##  263900  358400  472600  484400  586400  716900
+```
+--
+
+```r
+summary(data$timestamp)
+```
+
+```
+##                  Min.               1st Qu.                Median 
+## "2017-08-24 00:00:00" "2017-08-30 23:57:30" "2017-09-06 23:55:00" 
+##                  Mean               3rd Qu.                  Max. 
+## "2017-09-06 23:55:00" "2017-09-13 23:52:30" "2017-09-20 23:50:00"
+```
+--
+
+```r
+summary(data$start_time)
+```
+
+```
+##                  Min.               1st Qu.                Median 
+## "2017-08-24 00:00:00" "2017-08-24 05:57:30" "2017-08-24 11:55:00" 
+##                  Mean               3rd Qu.                  Max. 
+## "2017-08-24 11:55:00" "2017-08-24 17:52:30" "2017-08-24 23:50:00"
+```
+---
+layout: true
+
+### Preview Data 
+
+---
+name: preview-1
+Throughput by Hour of Month
+
+```r
+ggplot(data) + aes(x=timestamp, y=throughput) +
+    geom_point(size=0.2) +
+    scale_x_datetime(date_labels='%F ') 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-12-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+Throughput by Hour of Day
+
+```r
+ggplot(data) + aes(start_time, throughput) + 
+    geom_point(alpha=0.6, size=0.5) +
+    scale_x_datetime(date_labels='%H:%m')
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-13-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+Colored by Day of Week
+
+```r
+(g &lt;- ggplot(data) + aes(x=start_time, y=throughput) +
+    geom_point(aes(color=day), alpha=0.6, size=0.5) +
+    scale_x_datetime(date_labels='%H:%m'))
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-14-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+name: simple_regression-layout
+layout: true
+### Simple Linear Regression
+
+---
+name: simple-regression1
+Create a function to estimate the relationship between the time of day and the throughput using the form:
+
+$$
+f(x) = \beta_0 +\beta_1x^2
+$$
+where `\(f(x)\)` is the function that predicts throughput given the minute of the day `\(x^2\)`.
+
+--
+name: simple-regression-2
+
+```r
+model.linear &lt;- lm(throughput ~ minute_of_day, data=data)
+model.linear
+```
+
+```
+## 
+## Call:
+## lm(formula = throughput ~ minute_of_day, data = data)
+## 
+## Coefficients:
+##   (Intercept)  minute_of_day  
+##     547778.12         -88.65
+```
+---
+name: predict-one
+Predict the throughput at 3:00 pm.
+
+
+```r
+minute_of_day.3pm &lt;- as.numeric(dhours(15), unit='minutes')
+beta &lt;- coef(model.linear)
+beta[1] + minute_of_day.3pm * beta[2]
+```
+
+```
+## (Intercept) 
+##    467988.6
+```
+---
+name: study-fx
+What does `\(f(x)\)` look like?
+
+--
+name: predict-simple
+First create a dataset of synthetic x values, consisting of a time series of consecutive 10 minute periods over 24 hours.
+--
+name: predict-simple1
+
+```r
+minute_of_day &lt;- seq(0, 24 * 60 - 1, 10)
+predictions &lt;- data.frame(minute_of_day,
+                          start_time = min(data$start_time) + dminutes(minute_of_day))
+head(predictions, 10)
+```
+
+```
+##    minute_of_day          start_time
+## 1              0 2017-08-24 00:00:00
+## 2             10 2017-08-24 00:10:00
+## 3             20 2017-08-24 00:20:00
+## 4             30 2017-08-24 00:30:00
+## 5             40 2017-08-24 00:40:00
+## 6             50 2017-08-24 00:50:00
+## 7             60 2017-08-24 01:00:00
+## 8             70 2017-08-24 01:10:00
+## 9             80 2017-08-24 01:20:00
+## 10            90 2017-08-24 01:30:00
+```
+---
+name: predict-simple2
+Now use the model to augment our synthetic predictors with values predicted by the linear model:
+
+
+```r
+predictions$throughput &lt;- predict(model.linear, newdata=predictions)
+```
+--
+name: baseline-values
+
+```r
+select(predictions, minute_of_day, throughput) %&gt;% head(10) %&gt;% kable(format='html')
+```
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; minute_of_day &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; throughput &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 547778.1 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 10 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 546891.6 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 20 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 546005.0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 30 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 545118.5 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 40 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 544231.9 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 50 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 543345.4 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 60 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 542458.8 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 70 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 541572.3 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 80 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 540685.7 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 539799.2 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+That's our baseline!  
+---
+name: baseline-plot
+ 
+Next, plot `\(f(x)\)`...
+
+
+```r
+g + geom_line(aes(x=start_time, y=throughput), color='red', size=1, data=predictions) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-20-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+name: baseline_model-summary
+Show more detail on the model using the `summary(...)` function.
+
+
+```r
+summary(model.linear)
+```
+
+```
+## 
+## Call:
+## lm(formula = throughput ~ minute_of_day, data = data)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -218496  -91723    6357   84150  219533 
+## 
+## Coefficients:
+##                 Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)   547778.117   3444.833  159.01   &lt;2e-16 ***
+## minute_of_day    -88.655      4.165  -21.29   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 109900 on 4030 degrees of freedom
+## Multiple R-squared:  0.1011,	Adjusted R-squared:  0.1008 
+## F-statistic:   453 on 1 and 4030 DF,  p-value: &lt; 2.2e-16
+```
+---
+layout: false
+name: poly-regression
+# Polynomial Regression
+
+Let's make the linear model "non-linear" by using polynomial coefficients instead of linear coefficients.
+
+--
+name: poly_regression-explanation
+Create multiple predictors from a single variable by raising the variable to different powers and assigning
+a coefficient to each predictor.
+
+--
+name: filter_weekend-data
+Begin by removing the weekend data.
+
+
+```r
+data.midweek &lt;- filter(data,  ! (day %in% c('Sat', 'Sun') ))
+```
+---
+layout: true
+name: poly_regression-layout
+### Polynomial Regression
+
+---
+name: weekday-chart
+
+```r
+(g.midweek &lt;- ggplot(data.midweek) + 
+     geom_point(aes(x=start_time, y=throughput, color=day), alpha=0.6, size=0.5) +
+     scale_x_datetime(date_labels='%H:%m'))
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-23-1.png" width="900px" style="display: block; margin: auto;" /&gt;
+
+---
+name: midweek_simple-model
+Now recalculate the linear model and predictions without the weekend data.
+
+
+```r
+model.midweek.linear   &lt;- lm(throughput ~ minute_of_day, data=data.midweek)
+predictions$throughput &lt;- predict(model.midweek.linear, newdata=predictions)
+```
+--
+
+```r
+head(predictions, 10) %&gt;% kable(format='html',)
+```
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; minute_of_day &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; start_time &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; throughput &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:00:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 629328.4 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 10 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:10:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 628060.8 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 20 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:20:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 626793.2 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 30 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:30:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 625525.6 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 40 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:40:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 624258.0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 50 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:50:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 622990.4 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 60 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:00:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 621722.8 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 70 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:10:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 620455.2 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 80 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:20:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 619187.6 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:30:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 617920.0 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+---
+name: midweek_simple_model-plot
+
+```r
+g.midweek + geom_line(aes(x=start_time, y=throughput), color='red', size=1, 
+                      data=predictions) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-26-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+name: quadratic-predictors
+#### Using Quadratic Coefficents
+
+Use quadratic terms for the minute of the day.
+$$
+  f(x) = \beta_0 + \beta_1x + \beta_2x^2
+$$
+...where `\(x\)` is the time of day.
+
+--
+name: quadratic-model
+In the R `lm()` function you represent a quadratic function as a formula that looks like this:
+
+```r
+throughput ~ I(minute_of_day**2) + minute_of_day
+```
+---
+name: quadratic_model-summary
+
+
+```r
+model.midweek.quadratic &lt;- lm(throughput ~ I(minute_of_day**2) + minute_of_day, 
+                              data=data.midweek)
+summary(model.midweek.quadratic)
+```
+
+```
+## 
+## Call:
+## lm(formula = throughput ~ I(minute_of_day^2) + minute_of_day, 
+##     data = data.midweek)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -267685  -41600    -332   43948  169314 
+## 
+## Coefficients:
+##                      Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)         5.326e+05  3.329e+03  159.98   &lt;2e-16 ***
+## I(minute_of_day^2) -2.859e-01  7.280e-03  -39.27   &lt;2e-16 ***
+## minute_of_day       2.821e+02  1.076e+01   26.23   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 60380 on 2877 degrees of freedom
+## Multiple R-squared:  0.5649,	Adjusted R-squared:  0.5646 
+## F-statistic:  1868 on 2 and 2877 DF,  p-value: &lt; 2.2e-16
+```
+---
+name: quadratic_model-predictions
+Regenerate throughput prediction using the quadratic model.
+
+
+```r
+predictions$throughput &lt;- predict(model.midweek.quadratic, newdata=predictions)
+```
+--
+name: quadratic_model_predictions-sample
+
+```r
+head(predictions, 10) %&gt;% kable(format='html',)
+```
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; minute_of_day &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; start_time &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; throughput &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:00:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 532562.0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 10 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:10:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 535354.5 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 20 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:20:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 538089.9 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 30 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:30:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 540768.1 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 40 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:40:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 543389.0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 50 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 00:50:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 545952.8 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 60 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:00:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 548459.4 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 70 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:10:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 550908.9 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 80 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:20:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 553301.1 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 90 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; 2017-08-24 01:30:00 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 555636.2 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+---
+name: quadratic_model-plot
+### Throughput prediction using a quadratic function
+
+
+```r
+g.midweek + geom_line(data=predictions,
+                      aes(x=start_time, y=throughput), 
+                      color='red', size=1) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-30-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+name: poly-formula
+
+### Using higher order polynomials
+
+Use higher degree polynomial via `poly()` function in the formula.
+
+
+```r
+model.midweek.poly &lt;- lm(throughput ~ poly(minute_of_day, 9), data=data.midweek)
+```
+--
+name: poly_formula-description
+
+This yields a model with 10 coefficents: 
+
+$$
+f(x) = \beta_0 + \beta_1x^1 + \beta_2x^2 + \beta_3x^3  ... \beta_9x^9 
+$$
+---
+name: poly_model-summary
+
+```r
+summary(model.midweek.poly)
+```
+
+```
+## 
+## Call:
+## lm(formula = throughput ~ poly(minute_of_day, 9), data = data.midweek)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -204992  -18280   10930   25193  133084 
+## 
+## Coefficients:
+##                           Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)               538695.5      779.2 691.353  &lt; 2e-16 ***
+## poly(minute_of_day, 9)1 -2827726.6    41815.7 -67.624  &lt; 2e-16 ***
+## poly(minute_of_day, 9)2 -2371285.7    41815.7 -56.708  &lt; 2e-16 ***
+## poly(minute_of_day, 9)3  1843026.5    41815.7  44.075  &lt; 2e-16 ***
+## poly(minute_of_day, 9)4  1279018.3    41815.7  30.587  &lt; 2e-16 ***
+## poly(minute_of_day, 9)5  -376947.7    41815.7  -9.014  &lt; 2e-16 ***
+## poly(minute_of_day, 9)6  -415504.0    41815.7  -9.937  &lt; 2e-16 ***
+## poly(minute_of_day, 9)7   150773.7    41815.7   3.606 0.000317 ***
+## poly(minute_of_day, 9)8   -54954.7    41815.7  -1.314 0.188880    
+## poly(minute_of_day, 9)9   311668.7    41815.7   7.453  1.2e-13 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 41820 on 2870 degrees of freedom
+## Multiple R-squared:  0.7918,	Adjusted R-squared:  0.7912 
+## F-statistic:  1213 on 9 and 2870 DF,  p-value: &lt; 2.2e-16
+```
+
+---
+name: poly_model-plot
+### Plot the polynomial predictor
+
+
+```r
+predictions$throughput &lt;- predict(model.midweek.poly, newdata=predictions)
+g.midweek + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', size=1) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-33-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+
+---
+layout: false
+name: multi-regression
+# Multiple Regression
+
+Linear Regression with more than one predictor: `\(x_0, x_1, x_2 ... x_n\)`
+
+Example: Instead of using the time of day as a predictor, derive two new terms from the 
+time of day: 
+$$
+f(x) = \beta_0 + \beta_1 \cos\left(\frac{x\cdot2\pi}{24 \cdot 60}\right) + \beta_2\sin\left(\frac{x\cdot2\pi}{24 \cdot 60}\right)
+$$
+...where `\(x\)` is the time of day.
+---
+layout: true
+### Multiple Regression
+
+---
+name: multi_add-vars
+
+First, add two new variables to the data frame:
+
+
+```r
+data.midweek$minute_of_day.cos &lt;- cos(data.midweek$minute_of_day*2*pi/1440)
+data.midweek$minute_of_day.sin &lt;- sin(data.midweek$minute_of_day*2*pi/1440)
+```
+--
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-35-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+name: multi-model
+Create the new model with the two derived variables.
+
+
+```r
+model.midweek.radial &lt;- lm(throughput ~ minute_of_day.cos + minute_of_day.sin,
+                           data=data.midweek)
+```
+--
+name: multi_model-summary
+
+```r
+summary(model.midweek.radial)
+```
+
+```
+## 
+## Call:
+## lm(formula = throughput ~ minute_of_day.cos + minute_of_day.sin, 
+##     data = data.midweek)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -216925  -19164    7537   27891  144902 
+## 
+## Coefficients:
+##                   Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)         538696        829  649.78   &lt;2e-16 ***
+## minute_of_day.cos   -67638       1172  -57.69   &lt;2e-16 ***
+## minute_of_day.sin    90618       1172   77.29   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 44490 on 2877 degrees of freedom
+## Multiple R-squared:  0.7638,	Adjusted R-squared:  0.7636 
+## F-statistic:  4651 on 2 and 2877 DF,  p-value: &lt; 2.2e-16
+```
+---
+name: multi-predictions
+
+To assess the model update our predictions with the new features, then recalculate the
+predicted throughput.
+
+
+```r
+predictions &lt;- mutate(predictions,
+                      minute_of_day.cos = cos(minute_of_day*2*pi/1400),
+                      minute_of_day.sin = sin(minute_of_day*2*pi/1400))
+predictions$throughput &lt;- predict(model.midweek.radial, newdata=predictions)
+```
+--
+name: multi_predictions-head
+
+```r
+head(predictions)
+```
+
+```
+##   minute_of_day          start_time throughput minute_of_day.cos
+## 1             0 2017-08-24 00:00:00   471057.0         1.0000000
+## 2            10 2017-08-24 00:10:00   475190.7         0.9989931
+## 3            20 2017-08-24 00:20:00   479452.2         0.9959743
+## 4            30 2017-08-24 00:30:00   483833.1         0.9909498
+## 5            40 2017-08-24 00:40:00   488324.5         0.9839296
+## 6            50 2017-08-24 00:50:00   492917.3         0.9749279
+##   minute_of_day.sin
+## 1        0.00000000
+## 2        0.04486483
+## 3        0.08963931
+## 4        0.13423327
+## 5        0.17855689
+## 6        0.22252093
+```
+---
+name: multi_predictions-plot
+
+```r
+g.midweek + geom_line(aes(x=start_time, y=throughput), 
+                      data=predictions, color='red', size=1) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-40-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+layout: false
+name: combined
+# Combined Methods
+
+Best of both worlds?
+
+--
+name: combined-1
+* Use both `\(\sin(x)\)` and `\(\cos(x)\)` values
+
+--
+name: combined-2
+* Add four new terms raising `\(\sin(x)\)` and `\(\cos(x)\)` to exponents of 2 and 3
+--
+name: combined-formula
+$$
+f(x) = \beta_0 + \beta_1\sin(x) + \beta_2\sin(x)^2 + \beta_3\sin(x)^3 + \\
+       \beta_4\cos(x) + \beta_5\cos(x)^2 + \beta_6\cos(x)^3
+$$
+--
+name: combined-3
+* Seven coefficients total
+
+---
+layout: true
+### Combining Radial and Polynomial
+
+---
+name: combined-model
+Use a formula with the `poly()` function:
+
+```r
+throughput ~ poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 3)
+```
+--
+name: combined_model-2
+
+
+```r
+model.midweek.combined &lt;- 
+    lm(throughput ~ poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 3), 
+       data=data.midweek)
+```
+---
+name: combined-summary
+
+
+```r
+summary(model.midweek.combined)
+```
+
+```
+## 
+## Call:
+## lm(formula = throughput ~ poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 
+##     3), data = data.midweek)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -207695  -18496   10163   25997  136382 
+## 
+## Coefficients: (1 not defined because of singularities)
+##                               Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                   538695.5      795.3 677.307  &lt; 2e-16 ***
+## poly(minute_of_day.cos, 3)1 -2566700.6    42682.9 -60.134  &lt; 2e-16 ***
+## poly(minute_of_day.cos, 3)2   662604.3    42682.9  15.524  &lt; 2e-16 ***
+## poly(minute_of_day.cos, 3)3   138557.8    42682.9   3.246  0.00118 ** 
+## poly(minute_of_day.sin, 3)1  3438730.0    42682.9  80.565  &lt; 2e-16 ***
+## poly(minute_of_day.sin, 3)2         NA         NA      NA       NA    
+## poly(minute_of_day.sin, 3)3    25416.2    42682.9   0.595  0.55158    
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 42680 on 2874 degrees of freedom
+## Multiple R-squared:  0.7828,	Adjusted R-squared:  0.7824 
+## F-statistic:  2072 on 5 and 2874 DF,  p-value: &lt; 2.2e-16
+```
+---
+name: bonus-question
+### Bonus question
+
+```r
+coef(model.midweek.combined)
+```
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; x &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; (Intercept) &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 538695.48 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; poly(minute_of_day.cos, 3)1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -2566700.61 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; poly(minute_of_day.cos, 3)2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 662604.33 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; poly(minute_of_day.cos, 3)3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 138557.76 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; poly(minute_of_day.sin, 3)1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3438730.02 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; poly(minute_of_day.sin, 3)2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; NA &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; poly(minute_of_day.sin, 3)3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 25416.21 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+Why is the term `\(sin(x)^2\)` not significant?
+---
+name: combined-predictions
+
+Update the predictions data with the combined model predictions.
+
+
+```r
+predictions$throughput &lt;- predict(model.midweek.combined, newdata=predictions)
+g.midweek + geom_line(aes(x=start_time, y=throughput), 
+                      data=predictions, color='red', size=1) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-44-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+layout: false
+### Summary of Model Performance
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; Formula &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Coefficients &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; AIC &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; F Statistic &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Adjusted R Squared &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; poly(minute_of_day, 9) &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 10 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 69477 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1213 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.79 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 3) &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 7 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 69592 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2072 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.78 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; minute_of_day.cos + minute_of_day.sin &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 69828 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4651 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.76 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; I(minute_of_day^2) + minute_of_day &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 71586 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1868 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.56 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; minute_of_day &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 72821 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1428 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.33 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+---
+
+# Diagnostic Plots
+
+The R `lm()` function includes diagnostic plots analyzing the residuals to assess the quality of the model.
+
+You can use `plot(model)` to view the plots interactively one at a time.
+---
+layout: true
+### Diagnostic Plots: 
+---
+Residual vs Fitted
+
+![](images/diagnostics1.jpeg)
+---
+Normal Q-Q
+
+![](images/diagnostics2.jpeg)
+
+---
+Scale-Location
+
+Verify the assumption of equal variance of the target variable across its predictors: homoscedasticity.
+
+
+![](images/diagnostics3.jpeg)
+
+---
+Residuals vs Leverage
+
+![](images/diagnostics5.jpeg)
+---
+layout: true
+class: diag-plots
+### Throughput Model Diagnostics: 
+---
+Linear Model
+name: diag-linear
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-46-1.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-46-2.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-46-3.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-46-4.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+Quadratic Model
+name: diag-quadratic
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-47-1.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-47-2.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-47-3.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-47-4.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+9th Degree Polynomial Model
+name: diag-poly
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-48-1.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-48-2.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-48-3.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-48-4.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+Radial/Cubic Model
+name: diag-combined
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-49-1.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-49-2.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-49-3.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-49-4.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+layout: false
+# Categorical Predictors
+
+Revisit the throughput dataset.
+
+This time we will include the days of the week.
+
+
+```r
+data &lt;- readRDS("data/rpmui.RDS") 
+# data$minute_of_day.cos &lt;- cos(data$minute_of_day*2*pi/1440)
+#data$minute_of_day.sin &lt;- sin(data$minute_of_day*2*pi/1440)
+model.byday &lt;- lm(throughput ~ poly(minute_of_day,3) + day, data=data)
+```
+---
+layout: true
+### Day of Week as a Categorical Predictor
+
+---
+
+```r
+coef(model.byday)
+```
+
+```
+##             (Intercept) poly(minute_of_day, 3)1 poly(minute_of_day, 3)2 
+##               498083.66             -2340048.47             -1920733.48 
+## poly(minute_of_day, 3)3                  dayMon                  daySat 
+##              1678288.94                15603.03              -151886.49 
+##                  daySun                  dayThu                  dayTue 
+##              -147029.64                56352.13                64210.03 
+##                  dayWed 
+##                66893.88
+```
+
+Why is there a day missing?
+
+--
+
+```r
+contrasts(data$day)
+```
+
+```
+##     Mon Sat Sun Thu Tue Wed
+## Fri   0   0   0   0   0   0
+## Mon   1   0   0   0   0   0
+## Sat   0   1   0   0   0   0
+## Sun   0   0   1   0   0   0
+## Thu   0   0   0   1   0   0
+## Tue   0   0   0   0   1   0
+## Wed   0   0   0   0   0   1
+```
+---
+What does this model look like?
+
+--
+
+First, create sample data in multiple dimensions.
+
+The current `predictions` data frame only covers one 24 hour period.
+
+
+```r
+dim(predictions)
+```
+
+```
+## [1] 144   5
+```
+--
+We need to expand this to cover seven 24 hour periods.
+
+
+```r
+predictions.byday &lt;- expand.grid(start_time=predictions$start_time, 
+                                 day=factor(c('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'))) %&gt;%
+    right_join(predictions, by='start_time')
+```
+--
+
+```r
+dim(predictions.byday)
+```
+
+```
+## [1] 1008    6
+```
+---
+Now Create the predictions using all the dimensions:
+
+
+```r
+predictions.byday$throughput &lt;- predict(model.byday, newdata = predictions.byday)
+```
+--
+
+```r
+head(predictions.byday, 10)
+```
+
+```
+##             start_time day minute_of_day throughput minute_of_day.cos
+## 1  2017-08-24 00:00:00 Mon             0   443756.9         1.0000000
+## 2  2017-08-24 00:00:00 Tue             0   492363.8         1.0000000
+## 3  2017-08-24 00:00:00 Wed             0   495047.7         1.0000000
+## 4  2017-08-24 00:00:00 Thu             0   484506.0         1.0000000
+## 5  2017-08-24 00:00:00 Fri             0   428153.8         1.0000000
+## 6  2017-08-24 00:00:00 Sat             0   276267.3         1.0000000
+## 7  2017-08-24 00:00:00 Sun             0   281124.2         1.0000000
+## 8  2017-08-24 00:10:00 Mon            10   451278.4         0.9989931
+## 9  2017-08-24 00:10:00 Tue            10   499885.4         0.9989931
+## 10 2017-08-24 00:10:00 Wed            10   502569.2         0.9989931
+##    minute_of_day.sin
+## 1         0.00000000
+## 2         0.00000000
+## 3         0.00000000
+## 4         0.00000000
+## 5         0.00000000
+## 6         0.00000000
+## 7         0.00000000
+## 8         0.04486483
+## 9         0.04486483
+## 10        0.04486483
+```
+---
+
+```r
+ggplot(predictions.byday) + aes(x=start_time, y=throughput, color=day) +
+    geom_line(linetype=2, size=0.5)
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-58-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+
+```r
+g + aes(color=day) +
+    geom_line(aes(x=start_time, y=throughput, color=day), linetype=2, inherit.aes = F, size = 0.5, 
+             data = predictions.byday) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-59-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+layout: false
+# Smoothing Splines
+
+Build a spline interpolation.
+
+
+```r
+model.spline &lt;- smooth.spline(data$minute_of_day, data$throughput)
+predictions$throughput &lt;- model.spline$y
+```
+---
+layout: true
+### Smoothing Splines
+
+---
+
+```r
+g + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', size=1) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-61-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+layout: false
+# Generalized Additive Models
+
+Can we combine splines with multiple regression?
+---
+layout: true
+### Generalized Additive Models
+
+---
+A GAM looks a lot like a linear model but allows you to specify a variable as a smoothing spline with 
+a smoothing parameter.
+
+
+```r
+model.gam &lt;- gam(throughput ~ s(minute_of_day, spar=0.5) + day, 
+                 data = data)
+
+predictions.byday$throughput &lt;- predict(model.gam, newdata=predictions.byday)
+```
+---
+
+```r
+g + geom_line(aes(x=start_time, y=throughput, color=day), data=predictions.byday, size=1) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-63-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+Add a weekend flag:
+
+
+```r
+data$weekend &lt;- data$day %in% c('Sat', 'Sun')
+predictions.byday$weekend &lt;- predictions.byday$day %in% c('Sat', 'Sun')
+summary(predictions.byday$weekend)
+```
+
+```
+##    Mode   FALSE    TRUE    NA's 
+## logical     720     288       0
+```
+--
+
+```r
+head(predictions.byday, 7)
+```
+
+```
+##   start_time day minute_of_day throughput minute_of_day.cos
+## 1 2017-08-24 Mon             0   484124.1                 1
+## 2 2017-08-24 Tue             0   532731.1                 1
+## 3 2017-08-24 Wed             0   535415.0                 1
+## 4 2017-08-24 Thu             0   524873.2                 1
+## 5 2017-08-24 Fri             0   468521.1                 1
+## 6 2017-08-24 Sat             0   316634.6                 1
+## 7 2017-08-24 Sun             0   321491.4                 1
+##   minute_of_day.sin weekend
+## 1                 0   FALSE
+## 2                 0   FALSE
+## 3                 0   FALSE
+## 4                 0   FALSE
+## 5                 0   FALSE
+## 6                 0    TRUE
+## 7                 0    TRUE
+```
+---
+
+Now "trick" `gam()` into building separate models for weekday and weekend days.
+
+
+```r
+model.fullsplines &lt;- gam(throughput ~ weekend * s(I(minute_of_day + (weekend * 1440)), spar=0.2), 
+                         data = data)
+```
+
+Update predictions with new values for weekend/weekday data.
+
+```r
+predictions.byday$throughput.fullsplines &lt;- predict(model.fullsplines, newdata=predictions.byday)
+```
+---
+
+```r
+g + geom_line(aes(x=start_time, y=throughput.fullsplines, linetype=weekend), data=predictions.byday, size=1) 
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-68-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+
+```r
+ggplot(predictions.byday) + aes(x=start_time, y=throughput.fullsplines, color=weekend) + geom_line()
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-69-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+
+---
+layout: false
+# Predicting Performance
+
+
+```r
+transactions &lt;- readRDS('data/sample_server_app.RDS')
+names(transactions)
+```
+
+```
+##   [1] "cpm"                                                                                                             
+##   [2] "duration"                                                                                                        
+##   [3] "queue_duration"                                                                                                  
+##   [4] "begin_time"                                                                                                      
+##   [5] "end_time"                                                                                                        
+##   [6] "start_bucket"                                                                                                    
+##   [7] "duration.ext"                                                                                                    
+##   [8] "cpm.ext"                                                                                                         
+##   [9] "rate.cpm.ext"                                                                                                    
+##  [10] "duration.db"                                                                                                     
+##  [11] "cpm.db"                                                                                                          
+##  [12] "rate.cpm.db"                                                                                                     
+##  [13] "cpm.name.Controller/admin/price_codes/create"                                                                    
+##  [14] "cpm.name.Controller/api/v1/telematics/update_asset"                                                              
+##  [15] "cpm.name.Controller/api/v1/vehicles/index"                                                                       
+##  [16] "cpm.name.Controller/api/v1/vehicles/notification"                                                                
+##  [17] "cpm.name.Controller/application/update_fluid_table_preferences"                                                  
+##  [18] "cpm.name.Controller/broker/cases/edit"                                                                           
+##  [19] "cpm.name.Controller/contacts/index"                                                                              
+##  [20] "cpm.name.Controller/customer_credit_status/show"                                                                 
+##  [21] "cpm.name.Controller/customer_downloads/index"                                                                    
+##  [22] "cpm.name.Controller/customers/edit"                                                                              
+##  [23] "cpm.name.Controller/downloads/get"                                                                               
+##  [24] "cpm.name.Controller/errors/not_found"                                                                            
+##  [25] "cpm.name.Controller/estimate_item_notes/index"                                                                   
+##  [26] "cpm.name.Controller/estimate_item_parts/bulk_create"                                                             
+##  [27] "cpm.name.Controller/estimate_item_parts/destroy"                                                                 
+##  [28] "cpm.name.Controller/estimate_item_parts/index"                                                                   
+##  [29] "cpm.name.Controller/estimate_item_parts/update"                                                                  
+##  [30] "cpm.name.Controller/estimate_items/edit"                                                                         
+##  [31] "cpm.name.Controller/estimate_items/new_from_operation"                                                           
+##  [32] "cpm.name.Controller/estimate_items/update"                                                                       
+##  [33] "cpm.name.Controller/estimates/actions"                                                                           
+##  [34] "cpm.name.Controller/estimates/add_adjust"                                                                        
+##  [35] "cpm.name.Controller/estimates/add_operation"                                                                     
+##  [36] "cpm.name.Controller/estimates/assign_to"                                                                         
+##  [37] "cpm.name.Controller/estimates/case_intake"                                                                       
+##  [38] "cpm.name.Controller/estimates/close"                                                                             
+##  [39] "cpm.name.Controller/estimates/decline_ops"                                                                       
+##  [40] "cpm.name.Controller/estimates/edit"                                                                              
+##  [41] "cpm.name.Controller/estimates/export_to_dms"                                                                     
+##  [42] "cpm.name.Controller/estimates/filter_data"                                                                       
+##  [43] "cpm.name.Controller/estimates/new_with_vehicle"                                                                  
+##  [44] "cpm.name.Controller/estimates/print"                                                                             
+##  [45] "cpm.name.Controller/estimates/save_note"                                                                         
+##  [46] "cpm.name.Controller/estimates/show_suggested_ops"                                                                
+##  [47] "cpm.name.Controller/estimates/suggested_ops"                                                                     
+##  [48] "cpm.name.Controller/estimates/update_status"                                                                     
+##  [49] "cpm.name.Controller/estimates/upload_doc"                                                                        
+##  [50] "cpm.name.Controller/fleet/estimate_versions/index"                                                               
+##  [51] "cpm.name.Controller/fleet/estimate_versions/show"                                                                
+##  [52] "cpm.name.Controller/fleet/estimates/show"                                                                        
+##  [53] "cpm.name.Controller/fleet/homepage/index"                                                                        
+##  [54] "cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/cases/:id (POST)"                                            
+##  [55] "cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/estimates/:estimate_id/items/:id (POST)"                     
+##  [56] "cpm.name.Controller/homepage/index"                                                                              
+##  [57] "cpm.name.Controller/inspection_form/location_outcome"                                                            
+##  [58] "cpm.name.Controller/inspection_form/location_outcome_notes"                                                      
+##  [59] "cpm.name.Controller/Middleware/Rack/ActionDispatch::Routing::RouteSet/call"                                      
+##  [60] "cpm.name.Controller/mobile/data/show"                                                                            
+##  [61] "cpm.name.Controller/mobile/estimate_item_statuses/create"                                                        
+##  [62] "cpm.name.Controller/mobile/estimate_items/show"                                                                  
+##  [63] "cpm.name.Controller/mobile/homepage/index"                                                                       
+##  [64] "cpm.name.Controller/mobile/sessions/info"                                                                        
+##  [65] "cpm.name.Controller/operations/embedded_search"                                                                  
+##  [66] "cpm.name.Controller/operations/operations"                                                                       
+##  [67] "cpm.name.Controller/operations/sources"                                                                          
+##  [68] "cpm.name.Controller/parts_availability/index"                                                                    
+##  [69] "cpm.name.Controller/pdf/header"                                                                                  
+##  [70] "cpm.name.Controller/price_codes/index"                                                                           
+##  [71] "cpm.name.Controller/qr_codes/show"                                                                               
+##  [72] "cpm.name.Controller/quick_actions/check_in"                                                                      
+##  [73] "cpm.name.Controller/reservations/index"                                                                          
+##  [74] "cpm.name.Controller/search/index"                                                                                
+##  [75] "cpm.name.Controller/shared/data/vmrs_assemblies"                                                                 
+##  [76] "cpm.name.Controller/shared/data/vmrs_components"                                                                 
+##  [77] "cpm.name.Controller/shared/estimates/update_mileage"                                                             
+##  [78] "cpm.name.Controller/shared/estimates/update_misc_times"                                                          
+##  [79] "cpm.name.Controller/shared/estimates/update_nc_notes"                                                            
+##  [80] "cpm.name.Controller/shared/estimates/update_ro_number"                                                           
+##  [81] "cpm.name.Controller/shared/estimates/update_tag_number"                                                          
+##  [82] "cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/GET health/booted"                                            
+##  [83] "cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/HEAD health/booted"                                           
+##  [84] "cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets"                                            
+##  [85] "cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets/([^/?#]+)"                                  
+##  [86] "cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/POST assets/([^/?#]+)/cases"                           
+##  [87] "cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/GET cases/([^/?#]+)"                                    
+##  [88] "cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/PUT cases/([^/?#]+)/actions/close"                      
+##  [89] "cpm.name.Controller/Sinatra/PlatformAPI::Services::Customers/GET customers/([^/?#]+)"                            
+##  [90] "cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/PUT items/([^/?#]+)/parts/([^/?#]+)"        
+##  [91] "cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItems/GET estimates/([^/?#]+)/items"                  
+##  [92] "cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/POST ([^/?#]+)/([^/?#]+)/notes"               
+##  [93] "cpm.name.Controller/Sinatra/PlatformAPI::Services::ServiceLocations/GET service_locations/([^/?#]+)"             
+##  [94] "cpm.name.Controller/vehicles/edit"                                                                               
+##  [95] "cpm.name.Controller/vehicles/estimates"                                                                          
+##  [96] "cpm.name.Controller/vehicles/index"                                                                              
+##  [97] "cpm.name.Controller/vehicles/recent_open_cases"                                                                  
+##  [98] "cpm.name.OtherTransaction/ResqueJob/Jobs::CheckCustomerCreditStatus/perform"                                     
+##  [99] "cpm.name.OtherTransaction/ResqueJob/Jobs::DecisivVision::SyncEstimate/perform"                                   
+## [100] "cpm.name.OtherTransaction/ResqueJob/Jobs::Email::Import/perform"                                                 
+## [101] "cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::BuildCachedEstimatePdf/perform"                             
+## [102] "cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::CreateNotificationMessages/perform"                         
+## [103] "cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::EtrStatusEvent/perform"                                     
+## [104] "cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::Export/perform"                                             
+## [105] "cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::ExportTimestamps/perform"                                   
+## [106] "cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::PrimeExport/perform"                                        
+## [107] "cpm.name.OtherTransaction/ResqueJob/Jobs::Maintenance::GenerateReports/perform"                                  
+## [108] "cpm.name.OtherTransaction/ResqueJob/Jobs::Notification::Followup/perform"                                        
+## [109] "cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::AppointmentStatusEvent/perform"                          
+## [110] "cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ImportMqMessages/perform"                                         
+## [111] "cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ProcessMqMessage/perform"                                         
+## [112] "cpm.name.OtherTransaction/ResqueJob/PlatformApiInterface::Push::Jobs::DeliverMessageToTypedEndpoint/perform"     
+## [113] "cpm.name.Controller/broker/cases/update_misc_selects"                                                            
+## [114] "cpm.name.Controller/broker/cases/update_sub_estimate_attrs"                                                      
+## [115] "cpm.name.Controller/broker/new_cases/edit"                                                                       
+## [116] "cpm.name.Controller/broker/new_cases/update"                                                                     
+## [117] "cpm.name.Controller/estimate_items/append_notes"                                                                 
+## [118] "cpm.name.Controller/estimate_items/inspections"                                                                  
+## [119] "cpm.name.Controller/estimates/get_lock"                                                                          
+## [120] "cpm.name.Controller/estimates/request_service"                                                                   
+## [121] "cpm.name.Controller/estimates/request_service_from_dealer"                                                       
+## [122] "cpm.name.Controller/Grape/PlatformAPI::Apis::Root/*path (ANY)"                                                   
+## [123] "cpm.name.Controller/service_requests/create"                                                                     
+## [124] "cpm.name.Controller/shared/estimates/update_vmrs"                                                                
+## [125] "cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/POST items/([^/?#]+)/parts"                 
+## [126] "cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/GET ([^/?#]+)/([^/?#]+)/notes/([^/?#]+)"      
+## [127] "cpm.name.Controller/Sinatra/PlatformAPI::Services::OAuth2/POST oauth2/token"                                     
+## [128] "cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::UpdateReservationsUser/perform"                             
+## [129] "cpm.name.Controller/customers/update"                                                                            
+## [130] "cpm.name.Controller/fleet/search/index"                                                                          
+## [131] "cpm.name.Controller/mobile/estimate_items/inspection"                                                            
+## [132] "cpm.name.Controller/mobile/sessions/new"                                                                         
+## [133] "cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::UpdateAlertsForUser/perform"                             
+## [134] "cpm.name.Controller/fleet/vehicles/faults/meta"                                                                  
+## [135] "cpm.name.Controller/fleet/admin/depots/edit"                                                                     
+## [136] "cpm.name.Controller/fleet/vehicles/faults/index"                                                                 
+## [137] "cpm.name.Controller/fleet/vehicles/show"                                                                         
+## [138] "cpm.name.Controller/fleet/vehicles/transfer"                                                                     
+## [139] "cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)"                                   
+## [140] "cpm.name.Controller/vehicles/new"                                                                                
+## [141] "cpm.name.Controller/shared/vehicles/inprogress_cases"                                                            
+## [142] "cpm.name.Controller/estimate_item_parts/create"                                                                  
+## [143] "cpm.name.Controller/estimates/index"                                                                             
+## [144] "cpm.name.Controller/quick_actions/asset_ready"                                                                   
+## [145] "cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)"     
+## [146] "duration.name.Controller/admin/price_codes/create"                                                               
+## [147] "duration.name.Controller/api/v1/telematics/update_asset"                                                         
+## [148] "duration.name.Controller/api/v1/vehicles/index"                                                                  
+## [149] "duration.name.Controller/api/v1/vehicles/notification"                                                           
+## [150] "duration.name.Controller/application/update_fluid_table_preferences"                                             
+## [151] "duration.name.Controller/broker/cases/edit"                                                                      
+## [152] "duration.name.Controller/contacts/index"                                                                         
+## [153] "duration.name.Controller/customer_credit_status/show"                                                            
+## [154] "duration.name.Controller/customer_downloads/index"                                                               
+## [155] "duration.name.Controller/customers/edit"                                                                         
+## [156] "duration.name.Controller/downloads/get"                                                                          
+## [157] "duration.name.Controller/errors/not_found"                                                                       
+## [158] "duration.name.Controller/estimate_item_notes/index"                                                              
+## [159] "duration.name.Controller/estimate_item_parts/bulk_create"                                                        
+## [160] "duration.name.Controller/estimate_item_parts/destroy"                                                            
+## [161] "duration.name.Controller/estimate_item_parts/index"                                                              
+## [162] "duration.name.Controller/estimate_item_parts/update"                                                             
+## [163] "duration.name.Controller/estimate_items/edit"                                                                    
+## [164] "duration.name.Controller/estimate_items/new_from_operation"                                                      
+## [165] "duration.name.Controller/estimate_items/update"                                                                  
+## [166] "duration.name.Controller/estimates/actions"                                                                      
+## [167] "duration.name.Controller/estimates/add_adjust"                                                                   
+## [168] "duration.name.Controller/estimates/add_operation"                                                                
+## [169] "duration.name.Controller/estimates/assign_to"                                                                    
+## [170] "duration.name.Controller/estimates/case_intake"                                                                  
+## [171] "duration.name.Controller/estimates/close"                                                                        
+## [172] "duration.name.Controller/estimates/decline_ops"                                                                  
+## [173] "duration.name.Controller/estimates/edit"                                                                         
+## [174] "duration.name.Controller/estimates/export_to_dms"                                                                
+## [175] "duration.name.Controller/estimates/filter_data"                                                                  
+## [176] "duration.name.Controller/estimates/new_with_vehicle"                                                             
+## [177] "duration.name.Controller/estimates/print"                                                                        
+## [178] "duration.name.Controller/estimates/save_note"                                                                    
+## [179] "duration.name.Controller/estimates/show_suggested_ops"                                                           
+## [180] "duration.name.Controller/estimates/suggested_ops"                                                                
+## [181] "duration.name.Controller/estimates/update_status"                                                                
+## [182] "duration.name.Controller/estimates/upload_doc"                                                                   
+## [183] "duration.name.Controller/fleet/estimate_versions/index"                                                          
+## [184] "duration.name.Controller/fleet/estimate_versions/show"                                                           
+## [185] "duration.name.Controller/fleet/estimates/show"                                                                   
+## [186] "duration.name.Controller/fleet/homepage/index"                                                                   
+## [187] "duration.name.Controller/Grape/PlatformAPI::Apis::Root-1/cases/:id (POST)"                                       
+## [188] "duration.name.Controller/Grape/PlatformAPI::Apis::Root-1/estimates/:estimate_id/items/:id (POST)"                
+## [189] "duration.name.Controller/homepage/index"                                                                         
+## [190] "duration.name.Controller/inspection_form/location_outcome"                                                       
+## [191] "duration.name.Controller/inspection_form/location_outcome_notes"                                                 
+## [192] "duration.name.Controller/Middleware/Rack/ActionDispatch::Routing::RouteSet/call"                                 
+## [193] "duration.name.Controller/mobile/data/show"                                                                       
+## [194] "duration.name.Controller/mobile/estimate_item_statuses/create"                                                   
+## [195] "duration.name.Controller/mobile/estimate_items/show"                                                             
+## [196] "duration.name.Controller/mobile/homepage/index"                                                                  
+## [197] "duration.name.Controller/mobile/sessions/info"                                                                   
+## [198] "duration.name.Controller/operations/embedded_search"                                                             
+## [199] "duration.name.Controller/operations/operations"                                                                  
+## [200] "duration.name.Controller/operations/sources"                                                                     
+## [201] "duration.name.Controller/parts_availability/index"                                                               
+## [202] "duration.name.Controller/pdf/header"                                                                             
+## [203] "duration.name.Controller/price_codes/index"                                                                      
+## [204] "duration.name.Controller/qr_codes/show"                                                                          
+## [205] "duration.name.Controller/quick_actions/check_in"                                                                 
+## [206] "duration.name.Controller/reservations/index"                                                                     
+## [207] "duration.name.Controller/search/index"                                                                           
+## [208] "duration.name.Controller/shared/data/vmrs_assemblies"                                                            
+## [209] "duration.name.Controller/shared/data/vmrs_components"                                                            
+## [210] "duration.name.Controller/shared/estimates/update_mileage"                                                        
+## [211] "duration.name.Controller/shared/estimates/update_misc_times"                                                     
+## [212] "duration.name.Controller/shared/estimates/update_nc_notes"                                                       
+## [213] "duration.name.Controller/shared/estimates/update_ro_number"                                                      
+## [214] "duration.name.Controller/shared/estimates/update_tag_number"                                                     
+## [215] "duration.name.Controller/Sinatra/PlatformAPI::HealthApp/GET health/booted"                                       
+## [216] "duration.name.Controller/Sinatra/PlatformAPI::HealthApp/HEAD health/booted"                                      
+## [217] "duration.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets"                                       
+## [218] "duration.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets/([^/?#]+)"                             
+## [219] "duration.name.Controller/Sinatra/PlatformAPI::Services::Assets/POST assets/([^/?#]+)/cases"                      
+## [220] "duration.name.Controller/Sinatra/PlatformAPI::Services::Cases/GET cases/([^/?#]+)"                               
+## [221] "duration.name.Controller/Sinatra/PlatformAPI::Services::Cases/PUT cases/([^/?#]+)/actions/close"                 
+## [222] "duration.name.Controller/Sinatra/PlatformAPI::Services::Customers/GET customers/([^/?#]+)"                       
+## [223] "duration.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/PUT items/([^/?#]+)/parts/([^/?#]+)"   
+## [224] "duration.name.Controller/Sinatra/PlatformAPI::Services::EstimateItems/GET estimates/([^/?#]+)/items"             
+## [225] "duration.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/POST ([^/?#]+)/([^/?#]+)/notes"          
+## [226] "duration.name.Controller/Sinatra/PlatformAPI::Services::ServiceLocations/GET service_locations/([^/?#]+)"        
+## [227] "duration.name.Controller/vehicles/edit"                                                                          
+## [228] "duration.name.Controller/vehicles/estimates"                                                                     
+## [229] "duration.name.Controller/vehicles/index"                                                                         
+## [230] "duration.name.Controller/vehicles/recent_open_cases"                                                             
+## [231] "duration.name.OtherTransaction/ResqueJob/Jobs::CheckCustomerCreditStatus/perform"                                
+## [232] "duration.name.OtherTransaction/ResqueJob/Jobs::DecisivVision::SyncEstimate/perform"                              
+## [233] "duration.name.OtherTransaction/ResqueJob/Jobs::Email::Import/perform"                                            
+## [234] "duration.name.OtherTransaction/ResqueJob/Jobs::Estimates::BuildCachedEstimatePdf/perform"                        
+## [235] "duration.name.OtherTransaction/ResqueJob/Jobs::Estimates::CreateNotificationMessages/perform"                    
+## [236] "duration.name.OtherTransaction/ResqueJob/Jobs::Estimates::EtrStatusEvent/perform"                                
+## [237] "duration.name.OtherTransaction/ResqueJob/Jobs::Estimates::Export/perform"                                        
+## [238] "duration.name.OtherTransaction/ResqueJob/Jobs::Estimates::ExportTimestamps/perform"                              
+## [239] "duration.name.OtherTransaction/ResqueJob/Jobs::Estimates::PrimeExport/perform"                                   
+## [240] "duration.name.OtherTransaction/ResqueJob/Jobs::Maintenance::GenerateReports/perform"                             
+## [241] "duration.name.OtherTransaction/ResqueJob/Jobs::Notification::Followup/perform"                                   
+## [242] "duration.name.OtherTransaction/ResqueJob/Jobs::Reservations::AppointmentStatusEvent/perform"                     
+## [243] "duration.name.OtherTransaction/ResqueJob/Jobs::SQS::ImportMqMessages/perform"                                    
+## [244] "duration.name.OtherTransaction/ResqueJob/Jobs::SQS::ProcessMqMessage/perform"                                    
+## [245] "duration.name.OtherTransaction/ResqueJob/PlatformApiInterface::Push::Jobs::DeliverMessageToTypedEndpoint/perform"
+## [246] "duration.name.Controller/broker/cases/update_misc_selects"                                                       
+## [247] "duration.name.Controller/broker/cases/update_sub_estimate_attrs"                                                 
+## [248] "duration.name.Controller/broker/new_cases/edit"                                                                  
+## [249] "duration.name.Controller/broker/new_cases/update"                                                                
+## [250] "duration.name.Controller/estimate_items/append_notes"                                                            
+## [251] "duration.name.Controller/estimate_items/inspections"                                                             
+## [252] "duration.name.Controller/estimates/get_lock"                                                                     
+## [253] "duration.name.Controller/estimates/request_service"                                                              
+## [254] "duration.name.Controller/estimates/request_service_from_dealer"                                                  
+## [255] "duration.name.Controller/Grape/PlatformAPI::Apis::Root/*path (ANY)"                                              
+## [256] "duration.name.Controller/service_requests/create"                                                                
+## [257] "duration.name.Controller/shared/estimates/update_vmrs"                                                           
+## [258] "duration.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/POST items/([^/?#]+)/parts"            
+## [259] "duration.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/GET ([^/?#]+)/([^/?#]+)/notes/([^/?#]+)" 
+## [260] "duration.name.Controller/Sinatra/PlatformAPI::Services::OAuth2/POST oauth2/token"                                
+## [261] "duration.name.OtherTransaction/ResqueJob/Jobs::Estimates::UpdateReservationsUser/perform"                        
+## [262] "duration.name.Controller/customers/update"                                                                       
+## [263] "duration.name.Controller/fleet/search/index"                                                                     
+## [264] "duration.name.Controller/mobile/estimate_items/inspection"                                                       
+## [265] "duration.name.Controller/mobile/sessions/new"                                                                    
+## [266] "duration.name.OtherTransaction/ResqueJob/Jobs::Reservations::UpdateAlertsForUser/perform"                        
+## [267] "duration.name.Controller/fleet/vehicles/faults/meta"                                                             
+## [268] "duration.name.Controller/fleet/admin/depots/edit"                                                                
+## [269] "duration.name.Controller/fleet/vehicles/faults/index"                                                            
+## [270] "duration.name.Controller/fleet/vehicles/show"                                                                    
+## [271] "duration.name.Controller/fleet/vehicles/transfer"                                                                
+## [272] "duration.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)"                              
+## [273] "duration.name.Controller/vehicles/new"                                                                           
+## [274] "duration.name.Controller/shared/vehicles/inprogress_cases"                                                       
+## [275] "duration.name.Controller/estimate_item_parts/create"                                                             
+## [276] "duration.name.Controller/estimates/index"                                                                        
+## [277] "duration.name.Controller/quick_actions/asset_ready"                                                              
+## [278] "duration.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)"
+```
+---
+layout: true
+### Predicting Performance
+
+---
+
+```r
+g &lt;- ggplot(transactions) +
+    aes(x=cpm, y=duration) +
+        geom_point(aes(color=start_bucket), size=1, alpha=0.5) +
+        scale_color_gradientn(name='Minute of Day', colors=c('#006666', '#FF0000', '#006666'))+
+        ggtitle("Throughput vs Response Time") +
+    ylim(0, NA)
+g
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-71-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+Can we predict duration from the load?
+
+
+```r
+g + stat_smooth(method='lm', color='black')
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-72-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+
+```r
+model.linear.simple &lt;- lm(duration ~ cpm, data=transactions)
+summary(model.linear.simple)
+```
+
+```
+## 
+## Call:
+## lm(formula = duration ~ cpm, data = transactions)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -0.66290 -0.12029 -0.02154  0.11017  1.85161 
+## 
+## Coefficients:
+##               Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)  1.464e+00  8.744e-03   167.4   &lt;2e-16 ***
+## cpm         -2.351e-04  6.460e-06   -36.4   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 0.229 on 2012 degrees of freedom
+## Multiple R-squared:  0.397,	Adjusted R-squared:  0.3967 
+## F-statistic:  1325 on 1 and 2012 DF,  p-value: &lt; 2.2e-16
+```
+---
+Do the pages have an effect?
+
+
+```r
+cpm_columns &lt;- names(transactions) %&gt;% startsWith('cpm.')
+
+# Fill NA's with zeros
+index.na &lt;- is.na(transactions)
+for (col in which(cpm_columns)) { transactions[index.na[,col],col] &lt;- 0 }
+
+# Create rate columns with proportion of traffic to each name
+transactions[,paste0('rate.', names(transactions)[cpm_columns])] &lt;- transactions[,cpm_columns] / transactions$cpm
+```
+---
+
+The rate fields now have the percentage of traffic that hit that page, rather than the raw calls per minute:
+
+```r
+summary(transactions$`rate.cpm.name.Controller/api/v1/telematics/update_asset`)
+```
+
+```
+##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+## 0.00000 0.00000 0.00000 0.04409 0.00000 0.71610
+```
+---
+
+Now perform a regression using the page rates as predictors.
+
+--
+
+Do a regression on all rate columns:
+
+
+```r
+model &lt;- lm(duration ~ ., data = select(transactions, duration, cpm, starts_with('rate.cpm')))
+summary(model)
+```
+
+```
+## 
+## Call:
+## lm(formula = duration ~ ., data = select(transactions, duration, 
+##     cpm, starts_with("rate.cpm")))
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -0.27625 -0.02704 -0.00345  0.02301  1.62952 
+## 
+## Coefficients:
+##                                                                                                                      Estimate
+## (Intercept)                                                                                                         1.110e+00
+## cpm                                                                                                                 4.275e-05
+## rate.cpm.ext                                                                                                        5.106e-01
+## rate.cpm.db                                                                                                         2.089e+00
+## `rate.cpm.name.Controller/admin/price_codes/create`                                                                -2.789e+00
+## `rate.cpm.name.Controller/api/v1/telematics/update_asset`                                                          -7.767e-01
+## `rate.cpm.name.Controller/api/v1/vehicles/index`                                                                   -6.269e-01
+## `rate.cpm.name.Controller/api/v1/vehicles/notification`                                                             2.455e-01
+## `rate.cpm.name.Controller/application/update_fluid_table_preferences`                                              -3.520e+00
+## `rate.cpm.name.Controller/broker/cases/edit`                                                                        5.448e-01
+## `rate.cpm.name.Controller/contacts/index`                                                                          -3.271e+00
+## `rate.cpm.name.Controller/customer_credit_status/show`                                                             -4.800e-01
+## `rate.cpm.name.Controller/customer_downloads/index`                                                                -8.524e+00
+## `rate.cpm.name.Controller/customers/edit`                                                                           5.216e+00
+## `rate.cpm.name.Controller/downloads/get`                                                                            1.585e+00
+## `rate.cpm.name.Controller/errors/not_found`                                                                        -1.044e+00
+## `rate.cpm.name.Controller/estimate_item_notes/index`                                                                1.221e+01
+## `rate.cpm.name.Controller/estimate_item_parts/bulk_create`                                                          1.015e+01
+## `rate.cpm.name.Controller/estimate_item_parts/destroy`                                                             -5.353e+00
+## `rate.cpm.name.Controller/estimate_item_parts/index`                                                               -2.151e+01
+## `rate.cpm.name.Controller/estimate_item_parts/update`                                                              -4.006e+00
+## `rate.cpm.name.Controller/estimate_items/edit`                                                                      6.523e-01
+## `rate.cpm.name.Controller/estimate_items/new_from_operation`                                                        8.000e+01
+## `rate.cpm.name.Controller/estimate_items/update`                                                                    5.238e+00
+## `rate.cpm.name.Controller/estimates/actions`                                                                        5.601e+00
+## `rate.cpm.name.Controller/estimates/add_adjust`                                                                     6.370e+00
+## `rate.cpm.name.Controller/estimates/add_operation`                                                                 -3.164e-01
+## `rate.cpm.name.Controller/estimates/assign_to`                                                                      2.068e+00
+## `rate.cpm.name.Controller/estimates/case_intake`                                                                   -2.302e+00
+## `rate.cpm.name.Controller/estimates/close`                                                                          9.024e+00
+## `rate.cpm.name.Controller/estimates/decline_ops`                                                                   -6.359e-01
+## `rate.cpm.name.Controller/estimates/edit`                                                                           2.214e+00
+## `rate.cpm.name.Controller/estimates/export_to_dms`                                                                  5.069e+01
+## `rate.cpm.name.Controller/estimates/filter_data`                                                                    5.690e+00
+## `rate.cpm.name.Controller/estimates/new_with_vehicle`                                                               1.218e+01
+## `rate.cpm.name.Controller/estimates/print`                                                                          2.842e+00
+## `rate.cpm.name.Controller/estimates/save_note`                                                                      4.805e+00
+## `rate.cpm.name.Controller/estimates/show_suggested_ops`                                                            -2.724e+00
+## `rate.cpm.name.Controller/estimates/suggested_ops`                                                                 -6.951e+00
+## `rate.cpm.name.Controller/estimates/update_status`                                                                  1.438e+00
+## `rate.cpm.name.Controller/estimates/upload_doc`                                                                     1.239e+00
+## `rate.cpm.name.Controller/fleet/estimate_versions/index`                                                           -3.760e+00
+## `rate.cpm.name.Controller/fleet/estimate_versions/show`                                                             1.919e+01
+## `rate.cpm.name.Controller/fleet/estimates/show`                                                                    -3.725e+00
+## `rate.cpm.name.Controller/fleet/homepage/index`                                                                     9.094e-01
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/cases/:id (POST)`                                        -9.704e+00
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/estimates/:estimate_id/items/:id (POST)`                  2.407e+00
+## `rate.cpm.name.Controller/homepage/index`                                                                          -1.140e+00
+## `rate.cpm.name.Controller/inspection_form/location_outcome`                                                         8.751e-01
+## `rate.cpm.name.Controller/inspection_form/location_outcome_notes`                                                   5.781e-01
+## `rate.cpm.name.Controller/Middleware/Rack/ActionDispatch::Routing::RouteSet/call`                                   1.531e+00
+## `rate.cpm.name.Controller/mobile/data/show`                                                                         1.824e+01
+## `rate.cpm.name.Controller/mobile/estimate_item_statuses/create`                                                     1.226e+00
+## `rate.cpm.name.Controller/mobile/estimate_items/show`                                                              -6.480e+00
+## `rate.cpm.name.Controller/mobile/homepage/index`                                                                   -1.088e+00
+## `rate.cpm.name.Controller/mobile/sessions/info`                                                                    -1.007e+01
+## `rate.cpm.name.Controller/operations/embedded_search`                                                               1.139e+01
+## `rate.cpm.name.Controller/operations/operations`                                                                   -6.906e+00
+## `rate.cpm.name.Controller/operations/sources`                                                                      -8.494e+01
+## `rate.cpm.name.Controller/parts_availability/index`                                                                -3.831e-01
+## `rate.cpm.name.Controller/pdf/header`                                                                              -1.906e+00
+## `rate.cpm.name.Controller/price_codes/index`                                                                       -4.677e+00
+## `rate.cpm.name.Controller/qr_codes/show`                                                                           -5.760e+00
+## `rate.cpm.name.Controller/quick_actions/check_in`                                                                   1.003e+01
+## `rate.cpm.name.Controller/reservations/index`                                                                       4.728e-01
+## `rate.cpm.name.Controller/search/index`                                                                            -7.079e-01
+## `rate.cpm.name.Controller/shared/data/vmrs_assemblies`                                                             -6.900e+00
+## `rate.cpm.name.Controller/shared/data/vmrs_components`                                                              4.551e+00
+## `rate.cpm.name.Controller/shared/estimates/update_mileage`                                                         -8.360e-01
+## `rate.cpm.name.Controller/shared/estimates/update_misc_times`                                                       4.830e-02
+## `rate.cpm.name.Controller/shared/estimates/update_nc_notes`                                                         3.313e+00
+## `rate.cpm.name.Controller/shared/estimates/update_ro_number`                                                       -1.373e+01
+## `rate.cpm.name.Controller/shared/estimates/update_tag_number`                                                       3.561e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/GET health/booted`                                        -1.055e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/HEAD health/booted`                                        6.596e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets`                                        -3.422e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets/([^/?#]+)`                              -1.595e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/POST assets/([^/?#]+)/cases`                        1.424e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/GET cases/([^/?#]+)`                                 1.286e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/PUT cases/([^/?#]+)/actions/close`                   1.114e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Customers/GET customers/([^/?#]+)`                        -3.569e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/PUT items/([^/?#]+)/parts/([^/?#]+)`    -9.005e-01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItems/GET estimates/([^/?#]+)/items`              -8.813e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/POST ([^/?#]+)/([^/?#]+)/notes`           -5.941e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::ServiceLocations/GET service_locations/([^/?#]+)`          2.494e+01
+## `rate.cpm.name.Controller/vehicles/edit`                                                                            5.791e+00
+## `rate.cpm.name.Controller/vehicles/estimates`                                                                       5.793e-01
+## `rate.cpm.name.Controller/vehicles/index`                                                                          -1.336e+00
+## `rate.cpm.name.Controller/vehicles/recent_open_cases`                                                              -6.570e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::CheckCustomerCreditStatus/perform`                                  1.297e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::DecisivVision::SyncEstimate/perform`                               -2.501e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Email::Import/perform`                                             -1.518e+03
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::BuildCachedEstimatePdf/perform`                          1.072e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::CreateNotificationMessages/perform`                      2.177e-01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::EtrStatusEvent/perform`                                 -2.348e-02
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::Export/perform`                                         -5.232e+01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::ExportTimestamps/perform`                               -2.771e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::PrimeExport/perform`                                     1.999e+03
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Maintenance::GenerateReports/perform`                              -6.702e-02
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Notification::Followup/perform`                                     1.809e-01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::AppointmentStatusEvent/perform`                       1.341e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ImportMqMessages/perform`                                      3.246e+02
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ProcessMqMessage/perform`                                      9.889e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/PlatformApiInterface::Push::Jobs::DeliverMessageToTypedEndpoint/perform`  8.133e-01
+## `rate.cpm.name.Controller/broker/cases/update_misc_selects`                                                        -5.290e+00
+## `rate.cpm.name.Controller/broker/cases/update_sub_estimate_attrs`                                                  -7.946e+00
+## `rate.cpm.name.Controller/broker/new_cases/edit`                                                                   -4.215e-01
+## `rate.cpm.name.Controller/broker/new_cases/update`                                                                  4.697e+00
+## `rate.cpm.name.Controller/estimate_items/append_notes`                                                             -5.325e-01
+## `rate.cpm.name.Controller/estimate_items/inspections`                                                               6.064e+00
+## `rate.cpm.name.Controller/estimates/get_lock`                                                                       8.310e+00
+## `rate.cpm.name.Controller/estimates/request_service`                                                               -9.194e+00
+## `rate.cpm.name.Controller/estimates/request_service_from_dealer`                                                   -1.595e+01
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root/*path (ANY)`                                               -7.566e-02
+## `rate.cpm.name.Controller/service_requests/create`                                                                  6.292e+01
+## `rate.cpm.name.Controller/shared/estimates/update_vmrs`                                                            -8.033e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/POST items/([^/?#]+)/parts`             -2.302e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/GET ([^/?#]+)/([^/?#]+)/notes/([^/?#]+)`  -4.344e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::OAuth2/POST oauth2/token`                                  3.568e-01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::UpdateReservationsUser/perform`                         -7.549e+00
+## `rate.cpm.name.Controller/customers/update`                                                                         1.153e+01
+## `rate.cpm.name.Controller/fleet/search/index`                                                                       3.817e+00
+## `rate.cpm.name.Controller/mobile/estimate_items/inspection`                                                         9.540e-01
+## `rate.cpm.name.Controller/mobile/sessions/new`                                                                     -7.268e-01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::UpdateAlertsForUser/perform`                         -1.267e+00
+## `rate.cpm.name.Controller/fleet/vehicles/faults/meta`                                                              -1.321e+01
+## `rate.cpm.name.Controller/fleet/admin/depots/edit`                                                                 -5.647e+00
+## `rate.cpm.name.Controller/fleet/vehicles/faults/index`                                                              2.579e+01
+## `rate.cpm.name.Controller/fleet/vehicles/show`                                                                     -2.903e+01
+## `rate.cpm.name.Controller/fleet/vehicles/transfer`                                                                  1.397e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)`                                1.294e+01
+## `rate.cpm.name.Controller/vehicles/new`                                                                            -1.393e+01
+## `rate.cpm.name.Controller/shared/vehicles/inprogress_cases`                                                         5.860e-01
+## `rate.cpm.name.Controller/estimate_item_parts/create`                                                              -2.941e-01
+## `rate.cpm.name.Controller/estimates/index`                                                                         -3.156e+02
+## `rate.cpm.name.Controller/quick_actions/asset_ready`                                                                5.315e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)` -1.188e+01
+##                                                                                                                    Std. Error
+## (Intercept)                                                                                                         2.017e-01
+## cpm                                                                                                                 6.913e-06
+## rate.cpm.ext                                                                                                        4.301e-01
+## rate.cpm.db                                                                                                         1.683e-01
+## `rate.cpm.name.Controller/admin/price_codes/create`                                                                 1.863e+00
+## `rate.cpm.name.Controller/api/v1/telematics/update_asset`                                                           1.947e-01
+## `rate.cpm.name.Controller/api/v1/vehicles/index`                                                                    2.002e-01
+## `rate.cpm.name.Controller/api/v1/vehicles/notification`                                                             1.144e+00
+## `rate.cpm.name.Controller/application/update_fluid_table_preferences`                                               1.017e+01
+## `rate.cpm.name.Controller/broker/cases/edit`                                                                        1.272e+00
+## `rate.cpm.name.Controller/contacts/index`                                                                           1.603e+00
+## `rate.cpm.name.Controller/customer_credit_status/show`                                                              1.013e+00
+## `rate.cpm.name.Controller/customer_downloads/index`                                                                 5.402e+00
+## `rate.cpm.name.Controller/customers/edit`                                                                           6.788e+00
+## `rate.cpm.name.Controller/downloads/get`                                                                            2.900e+00
+## `rate.cpm.name.Controller/errors/not_found`                                                                         2.751e-01
+## `rate.cpm.name.Controller/estimate_item_notes/index`                                                                9.299e+00
+## `rate.cpm.name.Controller/estimate_item_parts/bulk_create`                                                          5.783e+00
+## `rate.cpm.name.Controller/estimate_item_parts/destroy`                                                              9.554e+00
+## `rate.cpm.name.Controller/estimate_item_parts/index`                                                                1.120e+01
+## `rate.cpm.name.Controller/estimate_item_parts/update`                                                               9.666e+00
+## `rate.cpm.name.Controller/estimate_items/edit`                                                                      1.704e+00
+## `rate.cpm.name.Controller/estimate_items/new_from_operation`                                                        2.758e+01
+## `rate.cpm.name.Controller/estimate_items/update`                                                                    3.022e+00
+## `rate.cpm.name.Controller/estimates/actions`                                                                        3.522e+00
+## `rate.cpm.name.Controller/estimates/add_adjust`                                                                     3.578e+00
+## `rate.cpm.name.Controller/estimates/add_operation`                                                                  9.521e+00
+## `rate.cpm.name.Controller/estimates/assign_to`                                                                      2.044e+00
+## `rate.cpm.name.Controller/estimates/case_intake`                                                                    1.465e+00
+## `rate.cpm.name.Controller/estimates/close`                                                                          2.811e+00
+## `rate.cpm.name.Controller/estimates/decline_ops`                                                                    1.025e+01
+## `rate.cpm.name.Controller/estimates/edit`                                                                           1.570e+00
+## `rate.cpm.name.Controller/estimates/export_to_dms`                                                                  3.503e+01
+## `rate.cpm.name.Controller/estimates/filter_data`                                                                    9.766e+00
+## `rate.cpm.name.Controller/estimates/new_with_vehicle`                                                               8.062e+00
+## `rate.cpm.name.Controller/estimates/print`                                                                          6.353e+00
+## `rate.cpm.name.Controller/estimates/save_note`                                                                      1.798e+00
+## `rate.cpm.name.Controller/estimates/show_suggested_ops`                                                             8.817e+00
+## `rate.cpm.name.Controller/estimates/suggested_ops`                                                                  1.081e+01
+## `rate.cpm.name.Controller/estimates/update_status`                                                                  2.870e+00
+## `rate.cpm.name.Controller/estimates/upload_doc`                                                                     3.139e+00
+## `rate.cpm.name.Controller/fleet/estimate_versions/index`                                                            7.545e+00
+## `rate.cpm.name.Controller/fleet/estimate_versions/show`                                                             7.755e+00
+## `rate.cpm.name.Controller/fleet/estimates/show`                                                                     3.791e+00
+## `rate.cpm.name.Controller/fleet/homepage/index`                                                                     1.978e+00
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/cases/:id (POST)`                                         1.656e+00
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/estimates/:estimate_id/items/:id (POST)`                  3.242e+00
+## `rate.cpm.name.Controller/homepage/index`                                                                           2.829e-01
+## `rate.cpm.name.Controller/inspection_form/location_outcome`                                                         7.083e-01
+## `rate.cpm.name.Controller/inspection_form/location_outcome_notes`                                                   7.237e-01
+## `rate.cpm.name.Controller/Middleware/Rack/ActionDispatch::Routing::RouteSet/call`                                   4.352e+00
+## `rate.cpm.name.Controller/mobile/data/show`                                                                         1.225e+01
+## `rate.cpm.name.Controller/mobile/estimate_item_statuses/create`                                                     6.010e+00
+## `rate.cpm.name.Controller/mobile/estimate_items/show`                                                               3.623e+00
+## `rate.cpm.name.Controller/mobile/homepage/index`                                                                    2.029e-01
+## `rate.cpm.name.Controller/mobile/sessions/info`                                                                     9.607e+00
+## `rate.cpm.name.Controller/operations/embedded_search`                                                               6.517e+00
+## `rate.cpm.name.Controller/operations/operations`                                                                    7.793e+00
+## `rate.cpm.name.Controller/operations/sources`                                                                       2.783e+01
+## `rate.cpm.name.Controller/parts_availability/index`                                                                 1.240e+00
+## `rate.cpm.name.Controller/pdf/header`                                                                               1.030e+00
+## `rate.cpm.name.Controller/price_codes/index`                                                                        2.033e+00
+## `rate.cpm.name.Controller/qr_codes/show`                                                                            4.185e+00
+## `rate.cpm.name.Controller/quick_actions/check_in`                                                                   7.910e+00
+## `rate.cpm.name.Controller/reservations/index`                                                                       1.262e+00
+## `rate.cpm.name.Controller/search/index`                                                                             5.970e-01
+## `rate.cpm.name.Controller/shared/data/vmrs_assemblies`                                                              3.063e+00
+## `rate.cpm.name.Controller/shared/data/vmrs_components`                                                              3.788e+00
+## `rate.cpm.name.Controller/shared/estimates/update_mileage`                                                          5.270e+00
+## `rate.cpm.name.Controller/shared/estimates/update_misc_times`                                                       1.348e+00
+## `rate.cpm.name.Controller/shared/estimates/update_nc_notes`                                                         2.561e+00
+## `rate.cpm.name.Controller/shared/estimates/update_ro_number`                                                        7.797e+00
+## `rate.cpm.name.Controller/shared/estimates/update_tag_number`                                                       4.882e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/GET health/booted`                                         2.942e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/HEAD health/booted`                                        3.881e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets`                                         2.044e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets/([^/?#]+)`                               7.536e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/POST assets/([^/?#]+)/cases`                        3.415e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/GET cases/([^/?#]+)`                                 3.188e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/PUT cases/([^/?#]+)/actions/close`                   1.600e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Customers/GET customers/([^/?#]+)`                         1.982e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/PUT items/([^/?#]+)/parts/([^/?#]+)`     1.834e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItems/GET estimates/([^/?#]+)/items`               3.210e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/POST ([^/?#]+)/([^/?#]+)/notes`            1.656e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::ServiceLocations/GET service_locations/([^/?#]+)`          9.792e+01
+## `rate.cpm.name.Controller/vehicles/edit`                                                                            4.526e+00
+## `rate.cpm.name.Controller/vehicles/estimates`                                                                       3.642e+00
+## `rate.cpm.name.Controller/vehicles/index`                                                                           2.408e+00
+## `rate.cpm.name.Controller/vehicles/recent_open_cases`                                                               6.240e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::CheckCustomerCreditStatus/perform`                                  3.293e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::DecisivVision::SyncEstimate/perform`                                3.688e-01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Email::Import/perform`                                              3.894e+02
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::BuildCachedEstimatePdf/perform`                          3.404e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::CreateNotificationMessages/perform`                      1.570e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::EtrStatusEvent/perform`                                  1.113e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::Export/perform`                                          3.530e+01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::ExportTimestamps/perform`                                2.786e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::PrimeExport/perform`                                     5.350e+02
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Maintenance::GenerateReports/perform`                               1.979e-01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Notification::Followup/perform`                                     2.018e-01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::AppointmentStatusEvent/perform`                       3.150e-01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ImportMqMessages/perform`                                      1.923e+02
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ProcessMqMessage/perform`                                      3.371e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/PlatformApiInterface::Push::Jobs::DeliverMessageToTypedEndpoint/perform`  1.897e+00
+## `rate.cpm.name.Controller/broker/cases/update_misc_selects`                                                         5.429e+00
+## `rate.cpm.name.Controller/broker/cases/update_sub_estimate_attrs`                                                   5.795e+00
+## `rate.cpm.name.Controller/broker/new_cases/edit`                                                                    1.292e+01
+## `rate.cpm.name.Controller/broker/new_cases/update`                                                                  9.774e+00
+## `rate.cpm.name.Controller/estimate_items/append_notes`                                                              4.536e+00
+## `rate.cpm.name.Controller/estimate_items/inspections`                                                               7.802e+00
+## `rate.cpm.name.Controller/estimates/get_lock`                                                                       1.242e+01
+## `rate.cpm.name.Controller/estimates/request_service`                                                                3.916e+00
+## `rate.cpm.name.Controller/estimates/request_service_from_dealer`                                                    3.512e+01
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root/*path (ANY)`                                                2.396e-01
+## `rate.cpm.name.Controller/service_requests/create`                                                                  3.656e+01
+## `rate.cpm.name.Controller/shared/estimates/update_vmrs`                                                             1.486e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/POST items/([^/?#]+)/parts`              3.663e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/GET ([^/?#]+)/([^/?#]+)/notes/([^/?#]+)`   3.351e+00
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::OAuth2/POST oauth2/token`                                  1.029e+01
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::UpdateReservationsUser/perform`                          1.110e+01
+## `rate.cpm.name.Controller/customers/update`                                                                         8.473e+00
+## `rate.cpm.name.Controller/fleet/search/index`                                                                       3.551e+00
+## `rate.cpm.name.Controller/mobile/estimate_items/inspection`                                                         5.489e+00
+## `rate.cpm.name.Controller/mobile/sessions/new`                                                                      2.539e+00
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::UpdateAlertsForUser/perform`                          1.243e+00
+## `rate.cpm.name.Controller/fleet/vehicles/faults/meta`                                                               5.413e+00
+## `rate.cpm.name.Controller/fleet/admin/depots/edit`                                                                  9.302e+00
+## `rate.cpm.name.Controller/fleet/vehicles/faults/index`                                                              2.947e+01
+## `rate.cpm.name.Controller/fleet/vehicles/show`                                                                      3.506e+01
+## `rate.cpm.name.Controller/fleet/vehicles/transfer`                                                                  1.577e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)`                                5.839e+00
+## `rate.cpm.name.Controller/vehicles/new`                                                                             1.082e+01
+## `rate.cpm.name.Controller/shared/vehicles/inprogress_cases`                                                         1.172e+01
+## `rate.cpm.name.Controller/estimate_item_parts/create`                                                               6.136e+00
+## `rate.cpm.name.Controller/estimates/index`                                                                          9.870e+01
+## `rate.cpm.name.Controller/quick_actions/asset_ready`                                                                5.676e+01
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)`  1.983e+01
+##                                                                                                                    t value
+## (Intercept)                                                                                                          5.502
+## cpm                                                                                                                  6.184
+## rate.cpm.ext                                                                                                         1.187
+## rate.cpm.db                                                                                                         12.412
+## `rate.cpm.name.Controller/admin/price_codes/create`                                                                 -1.497
+## `rate.cpm.name.Controller/api/v1/telematics/update_asset`                                                           -3.989
+## `rate.cpm.name.Controller/api/v1/vehicles/index`                                                                    -3.132
+## `rate.cpm.name.Controller/api/v1/vehicles/notification`                                                              0.215
+## `rate.cpm.name.Controller/application/update_fluid_table_preferences`                                               -0.346
+## `rate.cpm.name.Controller/broker/cases/edit`                                                                         0.428
+## `rate.cpm.name.Controller/contacts/index`                                                                           -2.040
+## `rate.cpm.name.Controller/customer_credit_status/show`                                                              -0.474
+## `rate.cpm.name.Controller/customer_downloads/index`                                                                 -1.578
+## `rate.cpm.name.Controller/customers/edit`                                                                            0.768
+## `rate.cpm.name.Controller/downloads/get`                                                                             0.547
+## `rate.cpm.name.Controller/errors/not_found`                                                                         -3.797
+## `rate.cpm.name.Controller/estimate_item_notes/index`                                                                 1.313
+## `rate.cpm.name.Controller/estimate_item_parts/bulk_create`                                                           1.755
+## `rate.cpm.name.Controller/estimate_item_parts/destroy`                                                              -0.560
+## `rate.cpm.name.Controller/estimate_item_parts/index`                                                                -1.920
+## `rate.cpm.name.Controller/estimate_item_parts/update`                                                               -0.414
+## `rate.cpm.name.Controller/estimate_items/edit`                                                                       0.383
+## `rate.cpm.name.Controller/estimate_items/new_from_operation`                                                         2.901
+## `rate.cpm.name.Controller/estimate_items/update`                                                                     1.733
+## `rate.cpm.name.Controller/estimates/actions`                                                                         1.590
+## `rate.cpm.name.Controller/estimates/add_adjust`                                                                      1.780
+## `rate.cpm.name.Controller/estimates/add_operation`                                                                  -0.033
+## `rate.cpm.name.Controller/estimates/assign_to`                                                                       1.011
+## `rate.cpm.name.Controller/estimates/case_intake`                                                                    -1.571
+## `rate.cpm.name.Controller/estimates/close`                                                                           3.210
+## `rate.cpm.name.Controller/estimates/decline_ops`                                                                    -0.062
+## `rate.cpm.name.Controller/estimates/edit`                                                                            1.409
+## `rate.cpm.name.Controller/estimates/export_to_dms`                                                                   1.447
+## `rate.cpm.name.Controller/estimates/filter_data`                                                                     0.583
+## `rate.cpm.name.Controller/estimates/new_with_vehicle`                                                                1.511
+## `rate.cpm.name.Controller/estimates/print`                                                                           0.447
+## `rate.cpm.name.Controller/estimates/save_note`                                                                       2.672
+## `rate.cpm.name.Controller/estimates/show_suggested_ops`                                                             -0.309
+## `rate.cpm.name.Controller/estimates/suggested_ops`                                                                  -0.643
+## `rate.cpm.name.Controller/estimates/update_status`                                                                   0.501
+## `rate.cpm.name.Controller/estimates/upload_doc`                                                                      0.395
+## `rate.cpm.name.Controller/fleet/estimate_versions/index`                                                            -0.498
+## `rate.cpm.name.Controller/fleet/estimate_versions/show`                                                              2.475
+## `rate.cpm.name.Controller/fleet/estimates/show`                                                                     -0.983
+## `rate.cpm.name.Controller/fleet/homepage/index`                                                                      0.460
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/cases/:id (POST)`                                         -5.860
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/estimates/:estimate_id/items/:id (POST)`                   0.743
+## `rate.cpm.name.Controller/homepage/index`                                                                           -4.030
+## `rate.cpm.name.Controller/inspection_form/location_outcome`                                                          1.236
+## `rate.cpm.name.Controller/inspection_form/location_outcome_notes`                                                    0.799
+## `rate.cpm.name.Controller/Middleware/Rack/ActionDispatch::Routing::RouteSet/call`                                    0.352
+## `rate.cpm.name.Controller/mobile/data/show`                                                                          1.489
+## `rate.cpm.name.Controller/mobile/estimate_item_statuses/create`                                                      0.204
+## `rate.cpm.name.Controller/mobile/estimate_items/show`                                                               -1.788
+## `rate.cpm.name.Controller/mobile/homepage/index`                                                                    -5.363
+## `rate.cpm.name.Controller/mobile/sessions/info`                                                                     -1.048
+## `rate.cpm.name.Controller/operations/embedded_search`                                                                1.748
+## `rate.cpm.name.Controller/operations/operations`                                                                    -0.886
+## `rate.cpm.name.Controller/operations/sources`                                                                       -3.052
+## `rate.cpm.name.Controller/parts_availability/index`                                                                 -0.309
+## `rate.cpm.name.Controller/pdf/header`                                                                               -1.850
+## `rate.cpm.name.Controller/price_codes/index`                                                                        -2.300
+## `rate.cpm.name.Controller/qr_codes/show`                                                                            -1.376
+## `rate.cpm.name.Controller/quick_actions/check_in`                                                                    1.268
+## `rate.cpm.name.Controller/reservations/index`                                                                        0.375
+## `rate.cpm.name.Controller/search/index`                                                                             -1.186
+## `rate.cpm.name.Controller/shared/data/vmrs_assemblies`                                                              -2.252
+## `rate.cpm.name.Controller/shared/data/vmrs_components`                                                               1.201
+## `rate.cpm.name.Controller/shared/estimates/update_mileage`                                                          -0.159
+## `rate.cpm.name.Controller/shared/estimates/update_misc_times`                                                        0.036
+## `rate.cpm.name.Controller/shared/estimates/update_nc_notes`                                                          1.294
+## `rate.cpm.name.Controller/shared/estimates/update_ro_number`                                                        -1.761
+## `rate.cpm.name.Controller/shared/estimates/update_tag_number`                                                        0.730
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/GET health/booted`                                         -3.587
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/HEAD health/booted`                                         1.700
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets`                                         -1.674
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets/([^/?#]+)`                               -0.212
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/POST assets/([^/?#]+)/cases`                         0.417
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/GET cases/([^/?#]+)`                                  0.403
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/PUT cases/([^/?#]+)/actions/close`                    6.961
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Customers/GET customers/([^/?#]+)`                         -0.180
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/PUT items/([^/?#]+)/parts/([^/?#]+)`     -0.491
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItems/GET estimates/([^/?#]+)/items`               -2.746
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/POST ([^/?#]+)/([^/?#]+)/notes`            -0.359
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::ServiceLocations/GET service_locations/([^/?#]+)`           0.255
+## `rate.cpm.name.Controller/vehicles/edit`                                                                             1.280
+## `rate.cpm.name.Controller/vehicles/estimates`                                                                        0.159
+## `rate.cpm.name.Controller/vehicles/index`                                                                           -0.555
+## `rate.cpm.name.Controller/vehicles/recent_open_cases`                                                               -1.053
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::CheckCustomerCreditStatus/perform`                                   0.394
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::DecisivVision::SyncEstimate/perform`                                -6.781
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Email::Import/perform`                                              -3.897
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::BuildCachedEstimatePdf/perform`                           0.315
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::CreateNotificationMessages/perform`                       0.139
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::EtrStatusEvent/perform`                                  -0.021
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::Export/perform`                                          -1.482
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::ExportTimestamps/perform`                                -0.995
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::PrimeExport/perform`                                      3.736
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Maintenance::GenerateReports/perform`                               -0.339
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Notification::Followup/perform`                                      0.896
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::AppointmentStatusEvent/perform`                        4.256
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ImportMqMessages/perform`                                       1.688
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ProcessMqMessage/perform`                                       2.933
+## `rate.cpm.name.OtherTransaction/ResqueJob/PlatformApiInterface::Push::Jobs::DeliverMessageToTypedEndpoint/perform`   0.429
+## `rate.cpm.name.Controller/broker/cases/update_misc_selects`                                                         -0.974
+## `rate.cpm.name.Controller/broker/cases/update_sub_estimate_attrs`                                                   -1.371
+## `rate.cpm.name.Controller/broker/new_cases/edit`                                                                    -0.033
+## `rate.cpm.name.Controller/broker/new_cases/update`                                                                   0.481
+## `rate.cpm.name.Controller/estimate_items/append_notes`                                                              -0.117
+## `rate.cpm.name.Controller/estimate_items/inspections`                                                                0.777
+## `rate.cpm.name.Controller/estimates/get_lock`                                                                        0.669
+## `rate.cpm.name.Controller/estimates/request_service`                                                                -2.347
+## `rate.cpm.name.Controller/estimates/request_service_from_dealer`                                                    -0.454
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root/*path (ANY)`                                                -0.316
+## `rate.cpm.name.Controller/service_requests/create`                                                                   1.721
+## `rate.cpm.name.Controller/shared/estimates/update_vmrs`                                                             -0.541
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/POST items/([^/?#]+)/parts`              -0.629
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/GET ([^/?#]+)/([^/?#]+)/notes/([^/?#]+)`   -1.296
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::OAuth2/POST oauth2/token`                                   0.035
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::UpdateReservationsUser/perform`                          -0.680
+## `rate.cpm.name.Controller/customers/update`                                                                          1.361
+## `rate.cpm.name.Controller/fleet/search/index`                                                                        1.075
+## `rate.cpm.name.Controller/mobile/estimate_items/inspection`                                                          0.174
+## `rate.cpm.name.Controller/mobile/sessions/new`                                                                      -0.286
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::UpdateAlertsForUser/perform`                          -1.019
+## `rate.cpm.name.Controller/fleet/vehicles/faults/meta`                                                               -2.441
+## `rate.cpm.name.Controller/fleet/admin/depots/edit`                                                                  -0.607
+## `rate.cpm.name.Controller/fleet/vehicles/faults/index`                                                               0.875
+## `rate.cpm.name.Controller/fleet/vehicles/show`                                                                      -0.828
+## `rate.cpm.name.Controller/fleet/vehicles/transfer`                                                                   0.886
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)`                                 2.217
+## `rate.cpm.name.Controller/vehicles/new`                                                                             -1.288
+## `rate.cpm.name.Controller/shared/vehicles/inprogress_cases`                                                          0.050
+## `rate.cpm.name.Controller/estimate_item_parts/create`                                                               -0.048
+## `rate.cpm.name.Controller/estimates/index`                                                                          -3.198
+## `rate.cpm.name.Controller/quick_actions/asset_ready`                                                                 0.936
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)`  -0.599
+##                                                                                                                    Pr(&gt;|t|)
+## (Intercept)                                                                                                        4.26e-08
+## cpm                                                                                                                7.64e-10
+## rate.cpm.ext                                                                                                       0.235291
+## rate.cpm.db                                                                                                         &lt; 2e-16
+## `rate.cpm.name.Controller/admin/price_codes/create`                                                                0.134630
+## `rate.cpm.name.Controller/api/v1/telematics/update_asset`                                                          6.88e-05
+## `rate.cpm.name.Controller/api/v1/vehicles/index`                                                                   0.001761
+## `rate.cpm.name.Controller/api/v1/vehicles/notification`                                                            0.830067
+## `rate.cpm.name.Controller/application/update_fluid_table_preferences`                                              0.729377
+## `rate.cpm.name.Controller/broker/cases/edit`                                                                       0.668394
+## `rate.cpm.name.Controller/contacts/index`                                                                          0.041464
+## `rate.cpm.name.Controller/customer_credit_status/show`                                                             0.635696
+## `rate.cpm.name.Controller/customer_downloads/index`                                                                0.114745
+## `rate.cpm.name.Controller/customers/edit`                                                                          0.442367
+## `rate.cpm.name.Controller/downloads/get`                                                                           0.584727
+## `rate.cpm.name.Controller/errors/not_found`                                                                        0.000151
+## `rate.cpm.name.Controller/estimate_item_notes/index`                                                               0.189479
+## `rate.cpm.name.Controller/estimate_item_parts/bulk_create`                                                         0.079438
+## `rate.cpm.name.Controller/estimate_item_parts/destroy`                                                             0.575375
+## `rate.cpm.name.Controller/estimate_item_parts/index`                                                               0.055015
+## `rate.cpm.name.Controller/estimate_item_parts/update`                                                              0.678586
+## `rate.cpm.name.Controller/estimate_items/edit`                                                                     0.701901
+## `rate.cpm.name.Controller/estimate_items/new_from_operation`                                                       0.003769
+## `rate.cpm.name.Controller/estimate_items/update`                                                                   0.083236
+## `rate.cpm.name.Controller/estimates/actions`                                                                       0.111965
+## `rate.cpm.name.Controller/estimates/add_adjust`                                                                    0.075162
+## `rate.cpm.name.Controller/estimates/add_operation`                                                                 0.973493
+## `rate.cpm.name.Controller/estimates/assign_to`                                                                     0.311941
+## `rate.cpm.name.Controller/estimates/case_intake`                                                                   0.116270
+## `rate.cpm.name.Controller/estimates/close`                                                                         0.001350
+## `rate.cpm.name.Controller/estimates/decline_ops`                                                                   0.950522
+## `rate.cpm.name.Controller/estimates/edit`                                                                          0.158860
+## `rate.cpm.name.Controller/estimates/export_to_dms`                                                                 0.148032
+## `rate.cpm.name.Controller/estimates/filter_data`                                                                   0.560185
+## `rate.cpm.name.Controller/estimates/new_with_vehicle`                                                              0.130901
+## `rate.cpm.name.Controller/estimates/print`                                                                         0.654649
+## `rate.cpm.name.Controller/estimates/save_note`                                                                     0.007599
+## `rate.cpm.name.Controller/estimates/show_suggested_ops`                                                            0.757372
+## `rate.cpm.name.Controller/estimates/suggested_ops`                                                                 0.520443
+## `rate.cpm.name.Controller/estimates/update_status`                                                                 0.616397
+## `rate.cpm.name.Controller/estimates/upload_doc`                                                                    0.693019
+## `rate.cpm.name.Controller/fleet/estimate_versions/index`                                                           0.618323
+## `rate.cpm.name.Controller/fleet/estimate_versions/show`                                                            0.013414
+## `rate.cpm.name.Controller/fleet/estimates/show`                                                                    0.325974
+## `rate.cpm.name.Controller/fleet/homepage/index`                                                                    0.645696
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/cases/:id (POST)`                                        5.45e-09
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/estimates/:estimate_id/items/:id (POST)`                 0.457862
+## `rate.cpm.name.Controller/homepage/index`                                                                          5.80e-05
+## `rate.cpm.name.Controller/inspection_form/location_outcome`                                                        0.216758
+## `rate.cpm.name.Controller/inspection_form/location_outcome_notes`                                                  0.424494
+## `rate.cpm.name.Controller/Middleware/Rack/ActionDispatch::Routing::RouteSet/call`                                  0.725123
+## `rate.cpm.name.Controller/mobile/data/show`                                                                        0.136597
+## `rate.cpm.name.Controller/mobile/estimate_item_statuses/create`                                                    0.838426
+## `rate.cpm.name.Controller/mobile/estimate_items/show`                                                              0.073877
+## `rate.cpm.name.Controller/mobile/homepage/index`                                                                   9.19e-08
+## `rate.cpm.name.Controller/mobile/sessions/info`                                                                    0.294789
+## `rate.cpm.name.Controller/operations/embedded_search`                                                              0.080556
+## `rate.cpm.name.Controller/operations/operations`                                                                   0.375638
+## `rate.cpm.name.Controller/operations/sources`                                                                      0.002304
+## `rate.cpm.name.Controller/parts_availability/index`                                                                0.757288
+## `rate.cpm.name.Controller/pdf/header`                                                                              0.064507
+## `rate.cpm.name.Controller/price_codes/index`                                                                       0.021555
+## `rate.cpm.name.Controller/qr_codes/show`                                                                           0.168883
+## `rate.cpm.name.Controller/quick_actions/check_in`                                                                  0.205067
+## `rate.cpm.name.Controller/reservations/index`                                                                      0.707963
+## `rate.cpm.name.Controller/search/index`                                                                            0.235865
+## `rate.cpm.name.Controller/shared/data/vmrs_assemblies`                                                             0.024415
+## `rate.cpm.name.Controller/shared/data/vmrs_components`                                                             0.229713
+## `rate.cpm.name.Controller/shared/estimates/update_mileage`                                                         0.873968
+## `rate.cpm.name.Controller/shared/estimates/update_misc_times`                                                      0.971409
+## `rate.cpm.name.Controller/shared/estimates/update_nc_notes`                                                        0.195856
+## `rate.cpm.name.Controller/shared/estimates/update_ro_number`                                                       0.078413
+## `rate.cpm.name.Controller/shared/estimates/update_tag_number`                                                      0.465772
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/GET health/booted`                                        0.000343
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/HEAD health/booted`                                       0.089370
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets`                                        0.094261
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets/([^/?#]+)`                              0.832374
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/POST assets/([^/?#]+)/cases`                       0.676832
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/GET cases/([^/?#]+)`                                0.686797
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/PUT cases/([^/?#]+)/actions/close`                  4.67e-12
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Customers/GET customers/([^/?#]+)`                        0.857131
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/PUT items/([^/?#]+)/parts/([^/?#]+)`    0.623579
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItems/GET estimates/([^/?#]+)/items`              0.006096
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/POST ([^/?#]+)/([^/?#]+)/notes`           0.719748
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::ServiceLocations/GET service_locations/([^/?#]+)`         0.798957
+## `rate.cpm.name.Controller/vehicles/edit`                                                                           0.200850
+## `rate.cpm.name.Controller/vehicles/estimates`                                                                      0.873642
+## `rate.cpm.name.Controller/vehicles/index`                                                                          0.579002
+## `rate.cpm.name.Controller/vehicles/recent_open_cases`                                                              0.292483
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::CheckCustomerCreditStatus/perform`                                 0.693746
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::DecisivVision::SyncEstimate/perform`                               1.60e-11
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Email::Import/perform`                                             0.000101
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::BuildCachedEstimatePdf/perform`                         0.752869
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::CreateNotificationMessages/perform`                     0.889695
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::EtrStatusEvent/perform`                                 0.983180
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::Export/perform`                                         0.138417
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::ExportTimestamps/perform`                               0.319971
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::PrimeExport/perform`                                    0.000193
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Maintenance::GenerateReports/perform`                              0.734859
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Notification::Followup/perform`                                    0.370224
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::AppointmentStatusEvent/perform`                      2.18e-05
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ImportMqMessages/perform`                                     0.091532
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ProcessMqMessage/perform`                                     0.003394
+## `rate.cpm.name.OtherTransaction/ResqueJob/PlatformApiInterface::Push::Jobs::DeliverMessageToTypedEndpoint/perform` 0.668107
+## `rate.cpm.name.Controller/broker/cases/update_misc_selects`                                                        0.329943
+## `rate.cpm.name.Controller/broker/cases/update_sub_estimate_attrs`                                                  0.170498
+## `rate.cpm.name.Controller/broker/new_cases/edit`                                                                   0.973968
+## `rate.cpm.name.Controller/broker/new_cases/update`                                                                 0.630838
+## `rate.cpm.name.Controller/estimate_items/append_notes`                                                             0.906548
+## `rate.cpm.name.Controller/estimate_items/inspections`                                                              0.437157
+## `rate.cpm.name.Controller/estimates/get_lock`                                                                      0.503518
+## `rate.cpm.name.Controller/estimates/request_service`                                                               0.019005
+## `rate.cpm.name.Controller/estimates/request_service_from_dealer`                                                   0.649782
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root/*path (ANY)`                                               0.752250
+## `rate.cpm.name.Controller/service_requests/create`                                                                 0.085411
+## `rate.cpm.name.Controller/shared/estimates/update_vmrs`                                                            0.588801
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/POST items/([^/?#]+)/parts`             0.529745
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/GET ([^/?#]+)/([^/?#]+)/notes/([^/?#]+)`  0.195017
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::OAuth2/POST oauth2/token`                                 0.972357
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::UpdateReservationsUser/perform`                         0.496578
+## `rate.cpm.name.Controller/customers/update`                                                                        0.173607
+## `rate.cpm.name.Controller/fleet/search/index`                                                                      0.282591
+## `rate.cpm.name.Controller/mobile/estimate_items/inspection`                                                        0.862043
+## `rate.cpm.name.Controller/mobile/sessions/new`                                                                     0.774697
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::UpdateAlertsForUser/perform`                         0.308141
+## `rate.cpm.name.Controller/fleet/vehicles/faults/meta`                                                              0.014754
+## `rate.cpm.name.Controller/fleet/admin/depots/edit`                                                                 0.543858
+## `rate.cpm.name.Controller/fleet/vehicles/faults/index`                                                             0.381707
+## `rate.cpm.name.Controller/fleet/vehicles/show`                                                                     0.407788
+## `rate.cpm.name.Controller/fleet/vehicles/transfer`                                                                 0.375614
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)`                               0.026755
+## `rate.cpm.name.Controller/vehicles/new`                                                                            0.198032
+## `rate.cpm.name.Controller/shared/vehicles/inprogress_cases`                                                        0.960139
+## `rate.cpm.name.Controller/estimate_item_parts/create`                                                              0.961776
+## `rate.cpm.name.Controller/estimates/index`                                                                         0.001408
+## `rate.cpm.name.Controller/quick_actions/asset_ready`                                                               0.349215
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)` 0.549126
+##                                                                                                                       
+## (Intercept)                                                                                                        ***
+## cpm                                                                                                                ***
+## rate.cpm.ext                                                                                                          
+## rate.cpm.db                                                                                                        ***
+## `rate.cpm.name.Controller/admin/price_codes/create`                                                                   
+## `rate.cpm.name.Controller/api/v1/telematics/update_asset`                                                          ***
+## `rate.cpm.name.Controller/api/v1/vehicles/index`                                                                   ** 
+## `rate.cpm.name.Controller/api/v1/vehicles/notification`                                                               
+## `rate.cpm.name.Controller/application/update_fluid_table_preferences`                                                 
+## `rate.cpm.name.Controller/broker/cases/edit`                                                                          
+## `rate.cpm.name.Controller/contacts/index`                                                                          *  
+## `rate.cpm.name.Controller/customer_credit_status/show`                                                                
+## `rate.cpm.name.Controller/customer_downloads/index`                                                                   
+## `rate.cpm.name.Controller/customers/edit`                                                                             
+## `rate.cpm.name.Controller/downloads/get`                                                                              
+## `rate.cpm.name.Controller/errors/not_found`                                                                        ***
+## `rate.cpm.name.Controller/estimate_item_notes/index`                                                                  
+## `rate.cpm.name.Controller/estimate_item_parts/bulk_create`                                                         .  
+## `rate.cpm.name.Controller/estimate_item_parts/destroy`                                                                
+## `rate.cpm.name.Controller/estimate_item_parts/index`                                                               .  
+## `rate.cpm.name.Controller/estimate_item_parts/update`                                                                 
+## `rate.cpm.name.Controller/estimate_items/edit`                                                                        
+## `rate.cpm.name.Controller/estimate_items/new_from_operation`                                                       ** 
+## `rate.cpm.name.Controller/estimate_items/update`                                                                   .  
+## `rate.cpm.name.Controller/estimates/actions`                                                                          
+## `rate.cpm.name.Controller/estimates/add_adjust`                                                                    .  
+## `rate.cpm.name.Controller/estimates/add_operation`                                                                    
+## `rate.cpm.name.Controller/estimates/assign_to`                                                                        
+## `rate.cpm.name.Controller/estimates/case_intake`                                                                      
+## `rate.cpm.name.Controller/estimates/close`                                                                         ** 
+## `rate.cpm.name.Controller/estimates/decline_ops`                                                                      
+## `rate.cpm.name.Controller/estimates/edit`                                                                             
+## `rate.cpm.name.Controller/estimates/export_to_dms`                                                                    
+## `rate.cpm.name.Controller/estimates/filter_data`                                                                      
+## `rate.cpm.name.Controller/estimates/new_with_vehicle`                                                                 
+## `rate.cpm.name.Controller/estimates/print`                                                                            
+## `rate.cpm.name.Controller/estimates/save_note`                                                                     ** 
+## `rate.cpm.name.Controller/estimates/show_suggested_ops`                                                               
+## `rate.cpm.name.Controller/estimates/suggested_ops`                                                                    
+## `rate.cpm.name.Controller/estimates/update_status`                                                                    
+## `rate.cpm.name.Controller/estimates/upload_doc`                                                                       
+## `rate.cpm.name.Controller/fleet/estimate_versions/index`                                                              
+## `rate.cpm.name.Controller/fleet/estimate_versions/show`                                                            *  
+## `rate.cpm.name.Controller/fleet/estimates/show`                                                                       
+## `rate.cpm.name.Controller/fleet/homepage/index`                                                                       
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/cases/:id (POST)`                                        ***
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root-1/estimates/:estimate_id/items/:id (POST)`                    
+## `rate.cpm.name.Controller/homepage/index`                                                                          ***
+## `rate.cpm.name.Controller/inspection_form/location_outcome`                                                           
+## `rate.cpm.name.Controller/inspection_form/location_outcome_notes`                                                     
+## `rate.cpm.name.Controller/Middleware/Rack/ActionDispatch::Routing::RouteSet/call`                                     
+## `rate.cpm.name.Controller/mobile/data/show`                                                                           
+## `rate.cpm.name.Controller/mobile/estimate_item_statuses/create`                                                       
+## `rate.cpm.name.Controller/mobile/estimate_items/show`                                                              .  
+## `rate.cpm.name.Controller/mobile/homepage/index`                                                                   ***
+## `rate.cpm.name.Controller/mobile/sessions/info`                                                                       
+## `rate.cpm.name.Controller/operations/embedded_search`                                                              .  
+## `rate.cpm.name.Controller/operations/operations`                                                                      
+## `rate.cpm.name.Controller/operations/sources`                                                                      ** 
+## `rate.cpm.name.Controller/parts_availability/index`                                                                   
+## `rate.cpm.name.Controller/pdf/header`                                                                              .  
+## `rate.cpm.name.Controller/price_codes/index`                                                                       *  
+## `rate.cpm.name.Controller/qr_codes/show`                                                                              
+## `rate.cpm.name.Controller/quick_actions/check_in`                                                                     
+## `rate.cpm.name.Controller/reservations/index`                                                                         
+## `rate.cpm.name.Controller/search/index`                                                                               
+## `rate.cpm.name.Controller/shared/data/vmrs_assemblies`                                                             *  
+## `rate.cpm.name.Controller/shared/data/vmrs_components`                                                                
+## `rate.cpm.name.Controller/shared/estimates/update_mileage`                                                            
+## `rate.cpm.name.Controller/shared/estimates/update_misc_times`                                                         
+## `rate.cpm.name.Controller/shared/estimates/update_nc_notes`                                                           
+## `rate.cpm.name.Controller/shared/estimates/update_ro_number`                                                       .  
+## `rate.cpm.name.Controller/shared/estimates/update_tag_number`                                                         
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/GET health/booted`                                        ***
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::HealthApp/HEAD health/booted`                                       .  
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets`                                        .  
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets/([^/?#]+)`                                 
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/POST assets/([^/?#]+)/cases`                          
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/GET cases/([^/?#]+)`                                   
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/PUT cases/([^/?#]+)/actions/close`                  ***
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Customers/GET customers/([^/?#]+)`                           
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/PUT items/([^/?#]+)/parts/([^/?#]+)`       
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItems/GET estimates/([^/?#]+)/items`              ** 
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/POST ([^/?#]+)/([^/?#]+)/notes`              
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::ServiceLocations/GET service_locations/([^/?#]+)`            
+## `rate.cpm.name.Controller/vehicles/edit`                                                                              
+## `rate.cpm.name.Controller/vehicles/estimates`                                                                         
+## `rate.cpm.name.Controller/vehicles/index`                                                                             
+## `rate.cpm.name.Controller/vehicles/recent_open_cases`                                                                 
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::CheckCustomerCreditStatus/perform`                                    
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::DecisivVision::SyncEstimate/perform`                               ***
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Email::Import/perform`                                             ***
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::BuildCachedEstimatePdf/perform`                            
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::CreateNotificationMessages/perform`                        
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::EtrStatusEvent/perform`                                    
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::Export/perform`                                            
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::ExportTimestamps/perform`                                  
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::PrimeExport/perform`                                    ***
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Maintenance::GenerateReports/perform`                                 
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Notification::Followup/perform`                                       
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::AppointmentStatusEvent/perform`                      ***
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ImportMqMessages/perform`                                     .  
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ProcessMqMessage/perform`                                     ** 
+## `rate.cpm.name.OtherTransaction/ResqueJob/PlatformApiInterface::Push::Jobs::DeliverMessageToTypedEndpoint/perform`    
+## `rate.cpm.name.Controller/broker/cases/update_misc_selects`                                                           
+## `rate.cpm.name.Controller/broker/cases/update_sub_estimate_attrs`                                                     
+## `rate.cpm.name.Controller/broker/new_cases/edit`                                                                      
+## `rate.cpm.name.Controller/broker/new_cases/update`                                                                    
+## `rate.cpm.name.Controller/estimate_items/append_notes`                                                                
+## `rate.cpm.name.Controller/estimate_items/inspections`                                                                 
+## `rate.cpm.name.Controller/estimates/get_lock`                                                                         
+## `rate.cpm.name.Controller/estimates/request_service`                                                               *  
+## `rate.cpm.name.Controller/estimates/request_service_from_dealer`                                                      
+## `rate.cpm.name.Controller/Grape/PlatformAPI::Apis::Root/*path (ANY)`                                                  
+## `rate.cpm.name.Controller/service_requests/create`                                                                 .  
+## `rate.cpm.name.Controller/shared/estimates/update_vmrs`                                                               
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/POST items/([^/?#]+)/parts`                
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::NotesForSubject/GET ([^/?#]+)/([^/?#]+)/notes/([^/?#]+)`     
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::OAuth2/POST oauth2/token`                                    
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::UpdateReservationsUser/perform`                            
+## `rate.cpm.name.Controller/customers/update`                                                                           
+## `rate.cpm.name.Controller/fleet/search/index`                                                                         
+## `rate.cpm.name.Controller/mobile/estimate_items/inspection`                                                           
+## `rate.cpm.name.Controller/mobile/sessions/new`                                                                        
+## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::UpdateAlertsForUser/perform`                            
+## `rate.cpm.name.Controller/fleet/vehicles/faults/meta`                                                              *  
+## `rate.cpm.name.Controller/fleet/admin/depots/edit`                                                                    
+## `rate.cpm.name.Controller/fleet/vehicles/faults/index`                                                                
+## `rate.cpm.name.Controller/fleet/vehicles/show`                                                                        
+## `rate.cpm.name.Controller/fleet/vehicles/transfer`                                                                    
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)`                               *  
+## `rate.cpm.name.Controller/vehicles/new`                                                                               
+## `rate.cpm.name.Controller/shared/vehicles/inprogress_cases`                                                           
+## `rate.cpm.name.Controller/estimate_item_parts/create`                                                                 
+## `rate.cpm.name.Controller/estimates/index`                                                                         ** 
+## `rate.cpm.name.Controller/quick_actions/asset_ready`                                                                  
+## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)`    
+## ---
+## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+## 
+## Residual standard error: 0.0718 on 1877 degrees of freedom
+## Multiple R-squared:  0.9447,	Adjusted R-squared:  0.9407 
+## F-statistic: 235.7 on 136 and 1877 DF,  p-value: &lt; 2.2e-16
+```
+---
+Use that model to pick out the predictors that have a p value less than 0.05.
+
+
+```r
+all.coef &lt;- anova(model)
+significant_factors &lt;- rownames(all.coef)[all.coef[[5]] &lt; 0.05] %&gt;% 
+    sub(pattern="`(.*)`", replacement="\\1") %&gt;%
+    head(-1)
+significant_factors
+```
+
+```
+##  [1] "cpm"                                                                                            
+##  [2] "rate.cpm.ext"                                                                                   
+##  [3] "rate.cpm.db"                                                                                    
+##  [4] "rate.cpm.name.Controller/admin/price_codes/create"                                              
+##  [5] "rate.cpm.name.Controller/api/v1/telematics/update_asset"                                        
+##  [6] "rate.cpm.name.Controller/api/v1/vehicles/index"                                                 
+##  [7] "rate.cpm.name.Controller/api/v1/vehicles/notification"                                          
+##  [8] "rate.cpm.name.Controller/application/update_fluid_table_preferences"                            
+##  [9] "rate.cpm.name.Controller/broker/cases/edit"                                                     
+## [10] "rate.cpm.name.Controller/contacts/index"                                                        
+## [11] "rate.cpm.name.Controller/customer_credit_status/show"                                           
+## [12] "rate.cpm.name.Controller/customer_downloads/index"                                              
+## [13] "rate.cpm.name.Controller/customers/edit"                                                        
+## [14] "rate.cpm.name.Controller/errors/not_found"                                                      
+## [15] "rate.cpm.name.Controller/estimate_item_notes/index"                                             
+## [16] "rate.cpm.name.Controller/estimate_item_parts/bulk_create"                                       
+## [17] "rate.cpm.name.Controller/estimate_item_parts/destroy"                                           
+## [18] "rate.cpm.name.Controller/estimate_items/edit"                                                   
+## [19] "rate.cpm.name.Controller/estimate_items/new_from_operation"                                     
+## [20] "rate.cpm.name.Controller/estimates/close"                                                       
+## [21] "rate.cpm.name.Controller/estimates/print"                                                       
+## [22] "rate.cpm.name.Controller/estimates/update_status"                                               
+## [23] "rate.cpm.name.Controller/fleet/estimate_versions/show"                                          
+## [24] "rate.cpm.name.Controller/homepage/index"                                                        
+## [25] "rate.cpm.name.Controller/inspection_form/location_outcome"                                      
+## [26] "rate.cpm.name.Controller/Middleware/Rack/ActionDispatch::Routing::RouteSet/call"                
+## [27] "rate.cpm.name.Controller/mobile/data/show"                                                      
+## [28] "rate.cpm.name.Controller/mobile/homepage/index"                                                 
+## [29] "rate.cpm.name.Controller/operations/sources"                                                    
+## [30] "rate.cpm.name.Controller/qr_codes/show"                                                         
+## [31] "rate.cpm.name.Controller/shared/data/vmrs_assemblies"                                           
+## [32] "rate.cpm.name.Controller/shared/estimates/update_misc_times"                                    
+## [33] "rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets"                      
+## [34] "rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Assets/GET assets/([^/?#]+)"            
+## [35] "rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/PUT cases/([^/?#]+)/actions/close"
+## [36] "rate.cpm.name.OtherTransaction/ResqueJob/Jobs::DecisivVision::SyncEstimate/perform"             
+## [37] "rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Email::Import/perform"                           
+## [38] "rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Estimates::PrimeExport/perform"                  
+## [39] "rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Maintenance::GenerateReports/perform"            
+## [40] "rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::AppointmentStatusEvent/perform"    
+## [41] "rate.cpm.name.OtherTransaction/ResqueJob/Jobs::SQS::ProcessMqMessage/perform"                   
+## [42] "rate.cpm.name.Controller/estimates/request_service_from_dealer"                                 
+## [43] "rate.cpm.name.Controller/fleet/vehicles/faults/index"                                           
+## [44] "rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)"             
+## [45] "rate.cpm.name.Controller/estimates/index"
+```
+---
+
+Create a new dataset with only the singificant factors.
+
+
+```r
+data &lt;- transactions[,c('duration', significant_factors)]
+```
+--
+
+Now perform three different regressions on that data predicting the duration.
+
+
+```r
+model.linear &lt;- lm(duration ~ ., data = data)
+model.quadratic &lt;- lm(duration ~ I(cpm^2) + ., data = data) 
+model.spline &lt;- gam(duration ~ s(cpm, spar=0.9) + ., data = data)
+```
+---
+Now what would the duration look like if we eliminated all page effects?
+
+--
+
+Create a dummy dataset that ignores the effects of pages by setting the rates to zero.
+
+
+```r
+predictions &lt;- data[1,]
+predictions[1:200,] &lt;- 0
+predictions$cpm &lt;- seq(min(data$cpm), max(data$cpm), length.out = 200)
+
+predictions$duration.linear &lt;- predict(model.linear, newdata=predictions)
+predictions$duration.quadratic &lt;- predict(model.quadratic, newdata=predictions)
+predictions$duration.spline &lt;- predict(model.spline, newdata=predictions)
+
+df &lt;-select(predictions, -duration) %&gt;%
+    gather('model', 'duration', duration.linear, duration.spline, duration.quadratic)
+```
+---
+
+```r
+ggplot(transactions) +
+    aes(x=cpm, y=duration) +
+    geom_point(color='black', alpha=0.2, size=0.2) +
+    stat_smooth(method='loess', color='black') +
+    geom_line(aes(x=cpm, y=duration, color=model, linetype=model), data=df) +
+    ggtitle(paste0('Prediction based on load'),
+            subtitle='with overlay of unfiltered sample data') +
+    ylim(0.5, 2.5)
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-81-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+---
+
+Compare the simple model to the page effects model:
+
+
+```r
+bind_rows(as.list(coef(model.linear)[1:2]),
+          as.list(coef(model.linear.simple)))
+```
+
+```
+## # A tibble: 2 x 2
+##   `(Intercept)`        cpm
+##           &lt;dbl&gt;      &lt;dbl&gt;
+## 1          1.25  0.0000493
+## 2          1.46 -0.000235
+```
+    </textarea>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"highlightLanguage": "r",
+"ratio": "16:9"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function() {
+  var d = document, s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})();</script>
+
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  tex2jax: {
+    skipTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+  }
+});
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://cdn.bootcss.com/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

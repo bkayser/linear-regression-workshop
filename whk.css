@@ -14,3 +14,17 @@ h1, h2, h3, h4 {
 .hljs-comment {
     font-size: 0.8em;
 }
+
+.diag-plots img {
+    width: 26em;
+    position: absolute;
+    top: 11%;
+    z-index: 4;
+}
+.diag-plots img:nth-child(even) {
+    left: 50%;
+}
+.diag-plots img:nth-child(n+3) {
+    top: 50%;
+    z-index: 2;
+}
