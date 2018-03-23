@@ -40,7 +40,7 @@ knitr::opts_chunk$set(echo = T,
 * Polynomial Regression
 * Feature Engineering
 * Diagnostic Plots
-* ``ggplot` library
+* `ggplot` library
 * Bonus?
     * GAMs
     * Performance Modeling
