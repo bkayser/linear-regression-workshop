@@ -412,9 +412,9 @@ layout: true
 Create a function to estimate the relationship between the time of day and the throughput using the form:
 
 $$
-f(x) = \beta_0 +\beta_1x^2
+f(x) = \beta_0 +\beta_1x
 $$
-where `\(f(x)\)` is the function that predicts throughput given the minute of the day `\(x^2\)`.
+where `\(f(x)\)` is the function that predicts throughput given the minute of the day `\(x\)`.
 
 --
 
@@ -439,7 +439,7 @@ Predict the throughput at 3:00 pm.
 
 
 ```r
-minute_of_day.3pm &lt;- as.numeric(dhours(15), unit='minutes')
+minute_of_day.3pm &lt;- as.numeric(dhours(15), unit='minutes') # 900
 beta &lt;- coef(model.linear)
 beta[1] + minute_of_day.3pm * beta[2]
 ```
