@@ -28,3 +28,7 @@ h1, h2, h3, h4 {
     top: 50%;
     z-index: 2;
 }
+
+#previewdata .table td,th {
+    font-size: 0.6em;
+}

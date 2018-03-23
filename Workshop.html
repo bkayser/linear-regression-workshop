@@ -19,7 +19,7 @@ class: center, middle, inverse, title-slide
 ---
 
 exclude: true
-name: init
+
   
 
 ```r
@@ -37,12 +37,33 @@ knitr::opts_chunk$set(echo = T,
 ```
 
 ---
+
+# Workshop Overview
+
+* Linear Regression using `lm()`
+* Polynomial Regression
+* Feature Engineering
+* Diagnostic Plots
+* ``ggplot` library
+* Bonus?
+    * GAMs
+    * Performance Modeling
+  
+--
+
+Follow along:
+
+* [github.com/bkayser/linear-regression-workshop](https://github.com/bkayser/linear-reg)
+* [Slides](https://bkayser.github.io/linear-regression-workshop/Workshop.html)
+* [Complete Notebook](https://bkayser.github.io/linear-regression-workshop/Workshop.nb.html)
+  
+---
 layout: true
-name: loadlibs
+
 ## Load required libraries
 
 ---
-name: tidyverse
+
 `tidyverse` loads in packages around Hadley Wickham's principles of tidy data.
 
 
@@ -69,7 +90,7 @@ library(tidyverse)
 
 
 ---
-name: otherlibs
+
 Some other libraries required for processing dates and doing Generalized Additive 
 Models.
 
@@ -117,8 +138,9 @@ library(gam)
 ```
 
 ---
-name: loaddata-layout
+
 layout: false
+
 ## Load Data
 
 This is a sample set of transaction data in a 10 minute timeseries.
@@ -152,6 +174,8 @@ data
 ## #   start_time &lt;dttm&gt;
 ```
 ---
+name: previewdata
+
 
 ```r
 names(data)
@@ -165,8 +189,9 @@ names(data)
 ```
 --
 
+
 ```r
-kable(format='html',head(data,10))
+kable(format='html',head(data,10)) 
 ```
 
 &lt;table&gt;
@@ -347,7 +372,7 @@ layout: true
 ### Preview Data 
 
 ---
-name: preview-1
+
 Throughput by Hour of Month
 
 ```r
@@ -378,12 +403,13 @@ Colored by Day of Week
 
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-14-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
-name: simple_regression-layout
+
 layout: true
+
 ### Simple Linear Regression
 
 ---
-name: simple-regression1
+
 Create a function to estimate the relationship between the time of day and the throughput using the form:
 
 $$
@@ -392,7 +418,7 @@ $$
 where `\(f(x)\)` is the function that predicts throughput given the minute of the day `\(x^2\)`.
 
 --
-name: simple-regression-2
+
 
 ```r
 model.linear &lt;- lm(throughput ~ minute_of_day, data=data)
@@ -409,7 +435,7 @@ model.linear
 ##     547778.12         -88.65
 ```
 ---
-name: predict-one
+
 Predict the throughput at 3:00 pm.
 
 
@@ -424,14 +450,15 @@ beta[1] + minute_of_day.3pm * beta[2]
 ##    467988.6
 ```
 ---
-name: study-fx
+
 What does `\(f(x)\)` look like?
 
 --
-name: predict-simple
-First create a dataset of synthetic x values, consisting of a time series of consecutive 10 minute periods over 24 hours.
+
+First create a dataset of synthetic x values, consisting of a time 
+series of consecutive 10 minute periods over 24 hours.
 --
-name: predict-simple1
+
 
 ```r
 minute_of_day &lt;- seq(0, 24 * 60 - 1, 10)
@@ -454,7 +481,7 @@ head(predictions, 10)
 ## 10            90 2017-08-24 01:30:00
 ```
 ---
-name: predict-simple2
+
 Now use the model to augment our synthetic predictors with values predicted by the linear model:
 
 
@@ -462,10 +489,10 @@ Now use the model to augment our synthetic predictors with values predicted by t
 predictions$throughput &lt;- predict(model.linear, newdata=predictions)
 ```
 --
-name: baseline-values
+
 
 ```r
-select(predictions, minute_of_day, throughput) %&gt;% head(10) %&gt;% kable(format='html')
+select(predictions, minute_of_day, throughput) %&gt;% head(10) %&gt;% kable(format='html') 
 ```
 
 &lt;table&gt;
@@ -521,7 +548,7 @@ select(predictions, minute_of_day, throughput) %&gt;% head(10) %&gt;% kable(form
 
 That's our baseline!  
 ---
-name: baseline-plot
+
  
 Next, plot `\(f(x)\)`...
 
@@ -532,7 +559,7 @@ g + geom_line(aes(x=start_time, y=throughput), color='red', size=1, data=predict
 
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-20-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
-name: baseline_model-summary
+
 Show more detail on the model using the `summary(...)` function.
 
 
@@ -562,18 +589,18 @@ summary(model.linear)
 ```
 ---
 layout: false
-name: poly-regression
+
 # Polynomial Regression
 
 Let's make the linear model "non-linear" by using polynomial coefficients instead of linear coefficients.
 
 --
-name: poly_regression-explanation
+
 Create multiple predictors from a single variable by raising the variable to different powers and assigning
 a coefficient to each predictor.
 
 --
-name: filter_weekend-data
+
 Begin by removing the weekend data.
 
 
@@ -582,11 +609,11 @@ data.midweek &lt;- filter(data,  ! (day %in% c('Sat', 'Sun') ))
 ```
 ---
 layout: true
-name: poly_regression-layout
+
 ### Polynomial Regression
 
 ---
-name: weekday-chart
+
 
 ```r
 (g.midweek &lt;- ggplot(data.midweek) + 
@@ -597,7 +624,7 @@ name: weekday-chart
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-23-1.png" width="900px" style="display: block; margin: auto;" /&gt;
 
 ---
-name: midweek_simple-model
+
 Now recalculate the linear model and predictions without the weekend data.
 
 
@@ -673,7 +700,7 @@ head(predictions, 10) %&gt;% kable(format='html',)
 &lt;/tbody&gt;
 &lt;/table&gt;
 ---
-name: midweek_simple_model-plot
+
 
 ```r
 g.midweek + geom_line(aes(x=start_time, y=throughput), color='red', size=1, 
@@ -682,7 +709,7 @@ g.midweek + geom_line(aes(x=start_time, y=throughput), color='red', size=1,
 
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-26-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
-name: quadratic-predictors
+
 #### Using Quadratic Coefficents
 
 Use quadratic terms for the minute of the day.
@@ -692,14 +719,14 @@ $$
 ...where `\(x\)` is the time of day.
 
 --
-name: quadratic-model
+
 In the R `lm()` function you represent a quadratic function as a formula that looks like this:
 
 ```r
 throughput ~ I(minute_of_day**2) + minute_of_day
 ```
 ---
-name: quadratic_model-summary
+
 
 
 ```r
@@ -731,7 +758,7 @@ summary(model.midweek.quadratic)
 ## F-statistic:  1868 on 2 and 2877 DF,  p-value: &lt; 2.2e-16
 ```
 ---
-name: quadratic_model-predictions
+
 Regenerate throughput prediction using the quadratic model.
 
 
@@ -739,7 +766,7 @@ Regenerate throughput prediction using the quadratic model.
 predictions$throughput &lt;- predict(model.midweek.quadratic, newdata=predictions)
 ```
 --
-name: quadratic_model_predictions-sample
+
 
 ```r
 head(predictions, 10) %&gt;% kable(format='html',)
@@ -807,7 +834,7 @@ head(predictions, 10) %&gt;% kable(format='html',)
 &lt;/tbody&gt;
 &lt;/table&gt;
 ---
-name: quadratic_model-plot
+
 ### Throughput prediction using a quadratic function
 
 
@@ -819,7 +846,7 @@ g.midweek + geom_line(data=predictions,
 
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-30-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
-name: poly-formula
+
 
 ### Using higher order polynomials
 
@@ -830,7 +857,7 @@ Use higher degree polynomial via `poly()` function in the formula.
 model.midweek.poly &lt;- lm(throughput ~ poly(minute_of_day, 9), data=data.midweek)
 ```
 --
-name: poly_formula-description
+
 
 This yields a model with 10 coefficents: 
 
@@ -838,7 +865,7 @@ $$
 f(x) = \beta_0 + \beta_1x^1 + \beta_2x^2 + \beta_3x^3  ... \beta_9x^9 
 $$
 ---
-name: poly_model-summary
+
 
 ```r
 summary(model.midweek.poly)
@@ -874,7 +901,7 @@ summary(model.midweek.poly)
 ```
 
 ---
-name: poly_model-plot
+
 ### Plot the polynomial predictor
 
 
@@ -887,7 +914,7 @@ g.midweek + geom_line(aes(x=start_time, y=throughput), data=predictions, color='
 
 ---
 layout: false
-name: multi-regression
+
 # Multiple Regression
 
 Linear Regression with more than one predictor: `\(x_0, x_1, x_2 ... x_n\)`
@@ -900,10 +927,10 @@ $$
 ...where `\(x\)` is the time of day.
 ---
 layout: true
+
 ### Multiple Regression
 
 ---
-name: multi_add-vars
 
 First, add two new variables to the data frame:
 
@@ -915,7 +942,7 @@ data.midweek$minute_of_day.sin &lt;- sin(data.midweek$minute_of_day*2*pi/1440)
 --
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-35-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
-name: multi-model
+
 Create the new model with the two derived variables.
 
 
@@ -924,7 +951,7 @@ model.midweek.radial &lt;- lm(throughput ~ minute_of_day.cos + minute_of_day.sin
                            data=data.midweek)
 ```
 --
-name: multi_model-summary
+
 
 ```r
 summary(model.midweek.radial)
@@ -953,7 +980,7 @@ summary(model.midweek.radial)
 ## F-statistic:  4651 on 2 and 2877 DF,  p-value: &lt; 2.2e-16
 ```
 ---
-name: multi-predictions
+
 
 To assess the model update our predictions with the new features, then recalculate the
 predicted throughput.
@@ -966,7 +993,7 @@ predictions &lt;- mutate(predictions,
 predictions$throughput &lt;- predict(model.midweek.radial, newdata=predictions)
 ```
 --
-name: multi_predictions-head
+
 
 ```r
 head(predictions)
@@ -989,7 +1016,7 @@ head(predictions)
 ## 6        0.22252093
 ```
 ---
-name: multi_predictions-plot
+
 
 ```r
 g.midweek + geom_line(aes(x=start_time, y=throughput), 
@@ -999,41 +1026,42 @@ g.midweek + geom_line(aes(x=start_time, y=throughput),
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-40-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 layout: false
-name: combined
+
 # Combined Methods
 
 Best of both worlds?
 
 --
-name: combined-1
+
 * Use both `\(\sin(x)\)` and `\(\cos(x)\)` values
 
 --
-name: combined-2
+
 * Add four new terms raising `\(\sin(x)\)` and `\(\cos(x)\)` to exponents of 2 and 3
 --
-name: combined-formula
+
 $$
 f(x) = \beta_0 + \beta_1\sin(x) + \beta_2\sin(x)^2 + \beta_3\sin(x)^3 + \\
        \beta_4\cos(x) + \beta_5\cos(x)^2 + \beta_6\cos(x)^3
 $$
 --
-name: combined-3
+
 * Seven coefficients total
 
 ---
 layout: true
+
 ### Combining Radial and Polynomial
 
 ---
-name: combined-model
+
 Use a formula with the `poly()` function:
 
 ```r
 throughput ~ poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 3)
 ```
 --
-name: combined_model-2
+
 
 
 ```r
@@ -1042,7 +1070,7 @@ model.midweek.combined &lt;-
        data=data.midweek)
 ```
 ---
-name: combined-summary
+
 
 
 ```r
@@ -1076,7 +1104,7 @@ summary(model.midweek.combined)
 ## F-statistic:  2072 on 5 and 2874 DF,  p-value: &lt; 2.2e-16
 ```
 ---
-name: bonus-question
+
 ### Bonus question
 
 ```r
@@ -1123,7 +1151,7 @@ coef(model.midweek.combined)
 
 Why is the term `\(sin(x)^2\)` not significant?
 ---
-name: combined-predictions
+
 
 Update the predictions data with the combined model predictions.
 
@@ -1137,6 +1165,7 @@ g.midweek + geom_line(aes(x=start_time, y=throughput),
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-44-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 layout: false
+
 ### Summary of Model Performance
 
 &lt;table&gt;
@@ -1196,6 +1225,7 @@ The R `lm()` function includes diagnostic plots analyzing the residuals to asses
 You can use `plot(model)` to view the plots interactively one at a time.
 ---
 layout: true
+
 ### Diagnostic Plots: 
 ---
 Residual vs Fitted
@@ -1221,25 +1251,27 @@ Residuals vs Leverage
 ---
 layout: true
 class: diag-plots
+
 ### Throughput Model Diagnostics: 
 ---
 Linear Model
-name: diag-linear
+
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-46-1.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-46-2.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-46-3.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-46-4.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 Quadratic Model
-name: diag-quadratic
+
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-47-1.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-47-2.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-47-3.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-47-4.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 9th Degree Polynomial Model
-name: diag-poly
+
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-48-1.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-48-2.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-48-3.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-48-4.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 Radial/Cubic Model
-name: diag-combined
+
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-49-1.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-49-2.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-49-3.png" width="800px" style="display: block; margin: auto;" /&gt;&lt;img src="Workshop_files/figure-html/unnamed-chunk-49-4.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 layout: false
+
 # Categorical Predictors
 
 Revisit the throughput dataset.
@@ -1255,6 +1287,7 @@ model.byday &lt;- lm(throughput ~ poly(minute_of_day,3) + day, data=data)
 ```
 ---
 layout: true
+
 ### Day of Week as a Categorical Predictor
 
 ---
@@ -1383,6 +1416,7 @@ g + aes(color=day) +
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-59-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 layout: false
+
 # Smoothing Splines
 
 Build a spline interpolation.
@@ -1394,6 +1428,7 @@ predictions$throughput &lt;- model.spline$y
 ```
 ---
 layout: true
+
 ### Smoothing Splines
 
 ---
@@ -1405,11 +1440,13 @@ g + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', si
 &lt;img src="Workshop_files/figure-html/unnamed-chunk-61-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 layout: false
+
 # Generalized Additive Models
 
 Can we combine splines with multiple regression?
 ---
 layout: true
+
 ### Generalized Additive Models
 
 ---
@@ -1779,6 +1816,7 @@ names(transactions)
 ```
 ---
 layout: true
+
 ### Predicting Performance
 
 ---
@@ -2282,18 +2320,7 @@ summary(model)
 ## `rate.cpm.name.Controller/mobile/estimate_items/inspection`                                                          0.174
 ## `rate.cpm.name.Controller/mobile/sessions/new`                                                                      -0.286
 ## `rate.cpm.name.OtherTransaction/ResqueJob/Jobs::Reservations::UpdateAlertsForUser/perform`                          -1.019
-## `rate.cpm.name.Controller/fleet/vehicles/faults/meta`                                                               -2.441
-## `rate.cpm.name.Controller/fleet/admin/depots/edit`                                                                  -0.607
-## `rate.cpm.name.Controller/fleet/vehicles/faults/index`                                                               0.875
-## `rate.cpm.name.Controller/fleet/vehicles/show`                                                                      -0.828
-## `rate.cpm.name.Controller/fleet/vehicles/transfer`                                                                   0.886
-## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::Cases/POST cases/([^/?#]+)`                                 2.217
-## `rate.cpm.name.Controller/vehicles/new`                                                                             -1.288
-## `rate.cpm.name.Controller/shared/vehicles/inprogress_cases`                                                          0.050
-## `rate.cpm.name.Controller/estimate_item_parts/create`                                                               -0.048
-## `rate.cpm.name.Controller/estimates/index`                                                                          -3.198
-## `rate.cpm.name.Controller/quick_actions/asset_ready`                                                                 0.936
-## `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)`  -0.599
+## `rate.cpm.name.Controller/fleet/vehicles/faults/meta`                                                         # `rate.cpm.name.Controller/Sinatra/PlatformAPI::Services::EstimateItemParts/DELETE items/([^/?#]+)/parts/([^/?#]+)`  -0.599
 ##                                                                                                                    Pr(&gt;|t|)
 ## (Intercept)                                                                                                        4.26e-08
 ## cpm                                                                                                                7.64e-10

@@ -16,7 +16,7 @@ output:
   html_notebook: default
 ---
 exclude: true
-name: init
+
   
 ```{r results='hide'}
 library(knitr)
@@ -33,12 +33,33 @@ knitr::opts_chunk$set(echo = T,
 ```
 
 ---
+
+# Workshop Overview
+
+* Linear Regression using `lm()`
+* Polynomial Regression
+* Feature Engineering
+* Diagnostic Plots
+* ``ggplot` library
+* Bonus?
+    * GAMs
+    * Performance Modeling
+  
+--
+
+Follow along:
+
+* [github.com/bkayser/linear-regression-workshop](https://github.com/bkayser/linear-reg)
+* [Slides](https://bkayser.github.io/linear-regression-workshop/Workshop.html)
+* [Complete Notebook](https://bkayser.github.io/linear-regression-workshop/Workshop.nb.html)
+  
+---
 layout: true
-name: loadlibs
+
 ## Load required libraries
 
 ---
-name: tidyverse
+
 `tidyverse` loads in packages around Hadley Wickham's principles of tidy data.
 
 ```{r echo=TRUE, results='hide'}
@@ -49,7 +70,7 @@ library(tidyverse)
 theme_set(theme_light() + theme(text=element_text(size=16)))
 ```
 ---
-name: otherlibs
+
 Some other libraries required for processing dates and doing Generalized Additive 
 Models.
 
@@ -59,8 +80,9 @@ library(gam)
 ```
 
 ---
-name: loaddata-layout
+
 layout: false
+
 ## Load Data
 
 This is a sample set of transaction data in a 10 minute timeseries.
@@ -73,12 +95,15 @@ data <- readRDS(gzcon(url("https://bit.ly/rpm-workshop-data")))
 data
 ```
 ---
+name: previewdata
+
 ```{r}
 names(data)
 ```
 --
+
 ```{r}
-kable(format='html',head(data,10))
+kable(format='html',head(data,10)) 
 ```
 ---
 ```{r}
@@ -98,7 +123,7 @@ layout: true
 ### Preview Data 
 
 ---
-name: preview-1
+
 Throughput by Hour of Month
 ```{r}
 ggplot(data) + aes(x=timestamp, y=throughput) +
@@ -120,12 +145,13 @@ Colored by Day of Week
     scale_x_datetime(date_labels='%H:%m'))
 ```
 ---
-name: simple_regression-layout
+
 layout: true
+
 ### Simple Linear Regression
 
 ---
-name: simple-regression1
+
 Create a function to estimate the relationship between the time of day and the throughput using the form:
 
 $$
@@ -134,13 +160,13 @@ $$
 where $f(x)$ is the function that predicts throughput given the minute of the day $x^2$.
 
 --
-name: simple-regression-2
+
 ```{r}
 model.linear <- lm(throughput ~ minute_of_day, data=data)
 model.linear
 ```
 ---
-name: predict-one
+
 Predict the throughput at 3:00 pm.
 
 ```{r}
@@ -149,14 +175,15 @@ beta <- coef(model.linear)
 beta[1] + minute_of_day.3pm * beta[2]
 ```
 ---
-name: study-fx
+
 What does $f(x)$ look like?
 
 --
-name: predict-simple
-First create a dataset of synthetic x values, consisting of a time series of consecutive 10 minute periods over 24 hours.
+
+First create a dataset of synthetic x values, consisting of a time 
+series of consecutive 10 minute periods over 24 hours.
 --
-name: predict-simple1
+
 ```{r}
 minute_of_day <- seq(0, 24 * 60 - 1, 10)
 predictions <- data.frame(minute_of_day,
@@ -164,21 +191,21 @@ predictions <- data.frame(minute_of_day,
 head(predictions, 10)
 ```
 ---
-name: predict-simple2
+
 Now use the model to augment our synthetic predictors with values predicted by the linear model:
 
 ```{r}
 predictions$throughput <- predict(model.linear, newdata=predictions)
 ```
 --
-name: baseline-values
+
 ```{r}
-select(predictions, minute_of_day, throughput) %>% head(10) %>% kable(format='html')
+select(predictions, minute_of_day, throughput) %>% head(10) %>% kable(format='html') 
 ```
 
 That's our baseline!  
 ---
-name: baseline-plot
+
  
 Next, plot $f(x)$...
 
@@ -186,7 +213,7 @@ Next, plot $f(x)$...
 g + geom_line(aes(x=start_time, y=throughput), color='red', size=1, data=predictions) 
 ```
 ---
-name: baseline_model-summary
+
 Show more detail on the model using the `summary(...)` function.
 
 ```{r}
@@ -194,18 +221,18 @@ summary(model.linear)
 ```
 ---
 layout: false
-name: poly-regression
+
 # Polynomial Regression
 
 Let's make the linear model "non-linear" by using polynomial coefficients instead of linear coefficients.
 
 --
-name: poly_regression-explanation
+
 Create multiple predictors from a single variable by raising the variable to different powers and assigning
 a coefficient to each predictor.
 
 --
-name: filter_weekend-data
+
 Begin by removing the weekend data.
 
 ```{r}
@@ -213,11 +240,11 @@ data.midweek <- filter(data,  ! (day %in% c('Sat', 'Sun') ))
 ```
 ---
 layout: true
-name: poly_regression-layout
+
 ### Polynomial Regression
 
 ---
-name: weekday-chart
+
 ```{r, out.width='900px'}
 (g.midweek <- ggplot(data.midweek) + 
      geom_point(aes(x=start_time, y=throughput, color=day), alpha=0.6, size=0.5) +
@@ -225,7 +252,7 @@ name: weekday-chart
 ```
 
 ---
-name: midweek_simple-model
+
 Now recalculate the linear model and predictions without the weekend data.
 
 ```{r}
@@ -237,13 +264,13 @@ predictions$throughput <- predict(model.midweek.linear, newdata=predictions)
 head(predictions, 10) %>% kable(format='html',)
 ```
 ---
-name: midweek_simple_model-plot
+
 ```{r}
 g.midweek + geom_line(aes(x=start_time, y=throughput), color='red', size=1, 
                       data=predictions) 
 ```
 ---
-name: quadratic-predictors
+
 #### Using Quadratic Coefficents
 
 Use quadratic terms for the minute of the day.
@@ -253,14 +280,14 @@ $$
 ...where $x$ is the time of day.
 
 --
-name: quadratic-model
+
 In the R `lm()` function you represent a quadratic function as a formula that looks like this:
 
 ```r
 throughput ~ I(minute_of_day**2) + minute_of_day
 ```
 ---
-name: quadratic_model-summary
+
 
 ```{r}
 model.midweek.quadratic <- lm(throughput ~ I(minute_of_day**2) + minute_of_day, 
@@ -268,19 +295,19 @@ model.midweek.quadratic <- lm(throughput ~ I(minute_of_day**2) + minute_of_day,
 summary(model.midweek.quadratic)
 ```
 ---
-name: quadratic_model-predictions
+
 Regenerate throughput prediction using the quadratic model.
 
 ```{r}
 predictions$throughput <- predict(model.midweek.quadratic, newdata=predictions)
 ```
 --
-name: quadratic_model_predictions-sample
+
 ```{r}
 head(predictions, 10) %>% kable(format='html',)
 ```
 ---
-name: quadratic_model-plot
+
 ### Throughput prediction using a quadratic function
 
 ```{r}
@@ -289,7 +316,7 @@ g.midweek + geom_line(data=predictions,
                       color='red', size=1) 
 ```
 ---
-name: poly-formula
+
 
 ### Using higher order polynomials
 
@@ -299,7 +326,7 @@ Use higher degree polynomial via `poly()` function in the formula.
 model.midweek.poly <- lm(throughput ~ poly(minute_of_day, 9), data=data.midweek)
 ```
 --
-name: poly_formula-description
+
 
 This yields a model with 10 coefficents: 
 
@@ -307,13 +334,13 @@ $$
 f(x) = \beta_0 + \beta_1x^1 + \beta_2x^2 + \beta_3x^3  ... \beta_9x^9 
 $$
 ---
-name: poly_model-summary
+
 ```{r}
 summary(model.midweek.poly)
 ```
 
 ---
-name: poly_model-plot
+
 ### Plot the polynomial predictor
 
 ```{r}
@@ -323,7 +350,7 @@ g.midweek + geom_line(aes(x=start_time, y=throughput), data=predictions, color='
 
 ---
 layout: false
-name: multi-regression
+
 # Multiple Regression
 
 Linear Regression with more than one predictor: $x_0, x_1, x_2 ... x_n$
@@ -336,10 +363,10 @@ $$
 ...where $x$ is the time of day.
 ---
 layout: true
+
 ### Multiple Regression
 
 ---
-name: multi_add-vars
 
 First, add two new variables to the data frame:
 
@@ -353,7 +380,7 @@ gather(data.midweek, key='variable', value='x',  minute_of_day.cos, minute_of_da
 ggplot() + aes(x=minute_of_day, y=x, color=variable) +  geom_line()
 ```
 ---
-name: multi-model
+
 Create the new model with the two derived variables.
 
 ```{r}
@@ -361,12 +388,12 @@ model.midweek.radial <- lm(throughput ~ minute_of_day.cos + minute_of_day.sin,
                            data=data.midweek)
 ```
 --
-name: multi_model-summary
+
 ```{r}
 summary(model.midweek.radial)
 ```
 ---
-name: multi-predictions
+
 
 To assess the model update our predictions with the new features, then recalculate the
 predicted throughput.
@@ -378,53 +405,54 @@ predictions <- mutate(predictions,
 predictions$throughput <- predict(model.midweek.radial, newdata=predictions)
 ```
 --
-name: multi_predictions-head
+
 ```{r}
 head(predictions)
 ```
 ---
-name: multi_predictions-plot
+
 ```{r}
 g.midweek + geom_line(aes(x=start_time, y=throughput), 
                       data=predictions, color='red', size=1) 
 ```
 ---
 layout: false
-name: combined
+
 # Combined Methods
 
 Best of both worlds?
 
 --
-name: combined-1
+
 * Use both $\sin(x)$ and $\cos(x)$ values
 
 --
-name: combined-2
+
 * Add four new terms raising $\sin(x)$ and $\cos(x)$ to exponents of 2 and 3
 --
-name: combined-formula
+
 $$
 f(x) = \beta_0 + \beta_1\sin(x) + \beta_2\sin(x)^2 + \beta_3\sin(x)^3 + \\
        \beta_4\cos(x) + \beta_5\cos(x)^2 + \beta_6\cos(x)^3
 $$
 --
-name: combined-3
+
 * Seven coefficients total
 
 ---
 layout: true
+
 ### Combining Radial and Polynomial
 
 ---
-name: combined-model
+
 Use a formula with the `poly()` function:
 
 ```r
 throughput ~ poly(minute_of_day.cos, 3) + poly(minute_of_day.sin, 3)
 ```
 --
-name: combined_model-2
+
 
 ```{r}
 model.midweek.combined <- 
@@ -432,13 +460,13 @@ model.midweek.combined <-
        data=data.midweek)
 ```
 ---
-name: combined-summary
+
 
 ```{r}
 summary(model.midweek.combined)
 ```
 ---
-name: bonus-question
+
 ### Bonus question
 
 ```r
@@ -450,7 +478,7 @@ kable(format='html',coef(model.midweek.combined))
 
 Why is the term $sin(x)^2$ not significant?
 ---
-name: combined-predictions
+
 
 Update the predictions data with the combined model predictions.
 
@@ -461,6 +489,7 @@ g.midweek + geom_line(aes(x=start_time, y=throughput),
 ```
 ---
 layout: false
+
 ### Summary of Model Performance
 
 ```{r echo=FALSE}
@@ -489,6 +518,7 @@ The R `lm()` function includes diagnostic plots analyzing the residuals to asses
 You can use `plot(model)` to view the plots interactively one at a time.
 ---
 layout: true
+
 ### Diagnostic Plots: 
 ---
 Residual vs Fitted
@@ -514,33 +544,35 @@ Residuals vs Leverage
 ---
 layout: true
 class: diag-plots
+
 ### Throughput Model Diagnostics: 
 ---
 Linear Model
-name: diag-linear
+
 ```{r echo=FALSE, fig.asp=0.6, fig.width=8}
 plot(model.midweek.linear)
 ```
 ---
 Quadratic Model
-name: diag-quadratic
+
 ```{r echo=FALSE, fig.asp=0.6, fig.width=8}
 plot(model.midweek.quadratic)
 ```
 ---
 9th Degree Polynomial Model
-name: diag-poly
+
 ```{r echo=FALSE, fig.asp=0.6, fig.width=8}
 plot(model.midweek.poly)
 ```
 ---
 Radial/Cubic Model
-name: diag-combined
+
 ```{r echo=FALSE, fig.asp=0.6, fig.width=8}
 plot(model.midweek.combined)
 ```
 ---
 layout: false
+
 # Categorical Predictors
 
 Revisit the throughput dataset.
@@ -555,6 +587,7 @@ model.byday <- lm(throughput ~ poly(minute_of_day,3) + day, data=data)
 ```
 ---
 layout: true
+
 ### Day of Week as a Categorical Predictor
 
 ---
@@ -615,6 +648,7 @@ g + aes(color=day) +
 ```
 ---
 layout: false
+
 # Smoothing Splines
 
 Build a spline interpolation.
@@ -625,6 +659,7 @@ predictions$throughput <- model.spline$y
 ```
 ---
 layout: true
+
 ### Smoothing Splines
 
 ---
@@ -633,11 +668,13 @@ g + geom_line(aes(x=start_time, y=throughput), data=predictions, color='red', si
 ```
 ---
 layout: false
+
 # Generalized Additive Models
 
 Can we combine splines with multiple regression?
 ---
 layout: true
+
 ### Generalized Additive Models
 
 ---
@@ -687,6 +724,7 @@ names(transactions)
 ```
 ---
 layout: true
+
 ### Predicting Performance
 
 ---
