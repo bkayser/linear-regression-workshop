@@ -2,6 +2,6 @@
 
 A demo of different regression techniques in R.
 
-See [the presentation](https://pages.github.com/bkayser/Workshop.nb.html).
+See [the complete lab](https://bkayser.github.io/linear-regression-workshop/Workshop.nb.html) also available in [presentation format](https://bkayser.github.io/linear-regression-workshop/Workshop.html).
 
 

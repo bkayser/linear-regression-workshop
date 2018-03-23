@@ -20,9 +20,6 @@ class: center, middle, inverse, title-slide
 
 exclude: true
 name: init
-## Init
-
-  html_notebook: default
   
 
 ```r
@@ -32,7 +29,7 @@ knitr::opts_chunk$set(echo = T,
                       warning=F, 
                       error = F, 
                       cache=T, 
-                      fig.width=9, 
+                      fig.width=11, 
                       fig.asp=0.5,
                       fig.align = 'center',
                       out.width = '800px'
@@ -53,6 +50,23 @@ name: tidyverse
 library(tidyverse)
 ```
 
+```
+## ── Attaching packages ─────────────────────────────────────────────────────────────────────────────────────────── tidyverse 1.2.1 ──
+```
+
+```
+## ✔ ggplot2 2.2.1     ✔ purrr   0.2.4
+## ✔ tibble  1.4.2     ✔ dplyr   0.7.4
+## ✔ tidyr   0.8.0     ✔ stringr 1.2.0
+## ✔ readr   1.1.1     ✔ forcats 0.2.0
+```
+
+```
+## ── Conflicts ────────────────────────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+## ✖ dplyr::filter() masks stats::filter()
+## ✖ dplyr::lag()    masks stats::lag()
+```
+
 
 ---
 name: otherlibs
@@ -62,7 +76,44 @@ Models.
 
 ```r
 library(lubridate)
+```
+
+```
+## 
+## Attaching package: 'lubridate'
+```
+
+```
+## The following object is masked from 'package:base':
+## 
+##     date
+```
+
+```r
 library(gam)
+```
+
+```
+## Loading required package: splines
+```
+
+```
+## Loading required package: foreach
+```
+
+```
+## 
+## Attaching package: 'foreach'
+```
+
+```
+## The following objects are masked from 'package:purrr':
+## 
+##     accumulate, when
+```
+
+```
+## Loaded gam 1.14-4
 ```
 
 ---
@@ -74,7 +125,7 @@ This is a sample set of transaction data in a 10 minute timeseries.
 
 
 ```r
-data &lt;- readRDS("data/rpmui.RDS")
+data &lt;- readRDS(gzcon(url("https://bit.ly/rpm-workshop-data")))
 ```
 --
 
@@ -1419,36 +1470,25 @@ head(predictions.byday, 7)
 ```
 ---
 
-Now "trick" `gam()` into building separate models for weekday and weekend days.
-
 
 ```r
 model.fullsplines &lt;- gam(throughput ~ weekend * s(I(minute_of_day + (weekend * 1440)), spar=0.2), 
                          data = data)
-```
 
-Update predictions with new values for weekend/weekday data.
-
-```r
 predictions.byday$throughput.fullsplines &lt;- predict(model.fullsplines, newdata=predictions.byday)
-```
----
 
-```r
 g + geom_line(aes(x=start_time, y=throughput.fullsplines, linetype=weekend), data=predictions.byday, size=1) 
 ```
 
-&lt;img src="Workshop_files/figure-html/unnamed-chunk-68-1.png" width="800px" style="display: block; margin: auto;" /&gt;
----
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-66-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 
 ```r
 ggplot(predictions.byday) + aes(x=start_time, y=throughput.fullsplines, color=weekend) + geom_line()
 ```
 
-&lt;img src="Workshop_files/figure-html/unnamed-chunk-69-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-66-2.png" width="800px" style="display: block; margin: auto;" /&gt;
 
 ---
-layout: false
 # Predicting Performance
 
 
@@ -1753,7 +1793,7 @@ g &lt;- ggplot(transactions) +
 g
 ```
 
-&lt;img src="Workshop_files/figure-html/unnamed-chunk-71-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-68-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 Can we predict duration from the load?
 
@@ -1762,7 +1802,7 @@ Can we predict duration from the load?
 g + stat_smooth(method='lm', color='black')
 ```
 
-&lt;img src="Workshop_files/figure-html/unnamed-chunk-72-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-69-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 
 ```r
@@ -1819,7 +1859,6 @@ summary(transactions$`rate.cpm.name.Controller/api/v1/telematics/update_asset`)
 ---
 
 Now perform a regression using the page rates as predictors.
-
 --
 
 Do a regression on all rate columns:
@@ -2612,14 +2651,13 @@ Now perform three different regressions on that data predicting the duration.
 
 ```r
 model.linear &lt;- lm(duration ~ ., data = data)
-model.quadratic &lt;- lm(duration ~ I(cpm^2) + ., data = data) 
+model.quadratic &lt;- lm(duration ~ I(cpm^2) + ., data = data) #%&gt;% step(direction='backward', trace=F)
 model.spline &lt;- gam(duration ~ s(cpm, spar=0.9) + ., data = data)
 ```
 ---
 Now what would the duration look like if we eliminated all page effects?
 
 --
-
 Create a dummy dataset that ignores the effects of pages by setting the rates to zero.
 
 
@@ -2638,19 +2676,24 @@ df &lt;-select(predictions, -duration) %&gt;%
 ---
 
 ```r
-ggplot(transactions) +
+(g &lt;- ggplot(transactions) +
     aes(x=cpm, y=duration) +
     geom_point(color='black', alpha=0.2, size=0.2) +
     stat_smooth(method='loess', color='black') +
-    geom_line(aes(x=cpm, y=duration, color=model, linetype=model), data=df) +
     ggtitle(paste0('Prediction based on load'),
             subtitle='with overlay of unfiltered sample data') +
-    ylim(0.5, 2.5)
+    ylim(0.5, 2.0) )
 ```
 
-&lt;img src="Workshop_files/figure-html/unnamed-chunk-81-1.png" width="800px" style="display: block; margin: auto;" /&gt;
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-78-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 ---
 
+
+```r
+    g + geom_line(aes(x=cpm, y=duration, color=model, linetype=model), data=df) + theme(legend.position = 'none')
+```
+
+&lt;img src="Workshop_files/figure-html/unnamed-chunk-79-1.png" width="800px" style="display: block; margin: auto;" /&gt;
 Compare the simple model to the page effects model:
 
 
