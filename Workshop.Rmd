@@ -49,9 +49,8 @@ knitr::opts_chunk$set(echo = T,
 
 Follow along:
 
-* [github.com/bkayser/linear-regression-workshop](https://github.com/bkayser/linear-reg)
-* [Slides](https://bkayser.github.io/linear-regression-workshop/Workshop.html)
-* [Complete Notebook](https://bkayser.github.io/linear-regression-workshop/Workshop.nb.html)
+Go to [github.com/bkayser/linear-regression-workshop](https://github.com/bkayser/linear-reg) and find the link for the [Slides](https://bkayser.github.io/linear-regression-workshop/Workshop.html) in the README.
+
   
 ---
 layout: true
